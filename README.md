@@ -112,14 +112,6 @@ elora-app/
 
 ---
 
-## Documentation
-
-- **[Database README](./supabase/database-readme.md)** - Realtime configuration and setup guide
-- **[Database Schema](./supabase/database-schema.md)** - Complete database schema documentation
-- **[Development Guidelines](./CLAUDE.md)** - Code architecture and best practices
-
----
-
 ## Development
 
 ### Available Scripts
