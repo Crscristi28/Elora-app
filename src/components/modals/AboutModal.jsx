@@ -418,7 +418,7 @@ const AboutModal = ({
 
               {/* Terms of Service */}
               <a
-                href="https://omniaai.app/terms"
+                href="https://elenor.io/terms"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -478,7 +478,7 @@ const AboutModal = ({
 
               {/* Privacy Policy */}
               <a
-                href="https://omniaai.app/privacy"
+                href="https://elenor.io/privacy"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -538,7 +538,7 @@ const AboutModal = ({
 
               {/* Authentication & Security */}
               <a
-                href="https://omniaai.app/security"
+                href="https://elenor.io/security"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -598,7 +598,7 @@ const AboutModal = ({
 
               {/* GDPR Compliance */}
               <a
-                href="https://omniaai.app/gdpr"
+                href="https://elenor.io/gdpr"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
