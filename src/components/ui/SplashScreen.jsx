@@ -227,9 +227,7 @@ const EloraSplashScreen = ({ isVisible, onComplete }) => {
           opacity: showText ? 1 : 0,
           transform: showText ? 'translateY(0)' : 'translateY(30px)',
           filter: showText ? 'blur(0px)' : 'blur(5px)',
-          transition: 'all 600ms cubic-bezier(0.4, 0.0, 0.2, 1) 0.2s',
-          position: 'absolute',
-          bottom: '15vh'
+          transition: 'all 600ms cubic-bezier(0.4, 0.0, 0.2, 1) 0.2s'
         }}>
 
           {/* Main Title */}
@@ -281,7 +279,7 @@ const EloraSplashScreen = ({ isVisible, onComplete }) => {
             fontWeight: '300',
             color: isLight ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.5)',
             letterSpacing: '0.05rem',
-            margin: '1rem 0 0 0',
+            margin: '3rem 0 0 0',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
           }}>
             v{packageJson.version}
