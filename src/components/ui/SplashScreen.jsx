@@ -126,7 +126,7 @@ const EloraSplashScreen = ({ isVisible, onComplete }) => {
 
         {/* Logo Container with Enhanced Effects */}
         <div style={{
-          marginBottom: '140px',
+          marginBottom: '100px',
           marginTop: window.innerHeight > window.innerWidth ? '-120px' : '-80px', // Portrait: higher, Landscape: normal
           opacity: showLogo ? 1 : 0,
           transform: showLogo ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(20px)',
@@ -227,7 +227,8 @@ const EloraSplashScreen = ({ isVisible, onComplete }) => {
           opacity: showText ? 1 : 0,
           transform: showText ? 'translateY(0)' : 'translateY(30px)',
           filter: showText ? 'blur(0px)' : 'blur(5px)',
-          transition: 'all 600ms cubic-bezier(0.4, 0.0, 0.2, 1) 0.2s'
+          transition: 'all 600ms cubic-bezier(0.4, 0.0, 0.2, 1) 0.2s',
+          marginTop: '-50px'
         }}>
 
           {/* Main Title */}
@@ -272,19 +273,25 @@ const EloraSplashScreen = ({ isVisible, onComplete }) => {
           }}>
             Powered by Elenor
           </p>
-
-          {/* App Version */}
-          <p style={{
-            fontSize: 'clamp(0.8rem, 2vw, 0.95rem)',
-            fontWeight: '300',
-            color: isLight ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.5)',
-            letterSpacing: '0.05rem',
-            margin: '5rem 0 0 0',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-          }}>
-            v{packageJson.version}
-          </p>
         </div>
+
+        {/* App Version - Fixed at bottom */}
+        <p style={{
+          position: 'absolute',
+          bottom: '30px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          fontSize: 'clamp(0.8rem, 2vw, 0.95rem)',
+          fontWeight: '300',
+          color: isLight ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+          letterSpacing: '0.05rem',
+          margin: 0,
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          opacity: showText ? 1 : 0,
+          transition: 'opacity 600ms cubic-bezier(0.4, 0.0, 0.2, 1) 0.2s'
+        }}>
+          v{packageJson.version}
+        </p>
 
       </div>
     </>
