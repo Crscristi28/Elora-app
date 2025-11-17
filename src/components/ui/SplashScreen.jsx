@@ -126,7 +126,7 @@ const EloraSplashScreen = ({ isVisible, onComplete }) => {
 
         {/* Logo Container with Enhanced Effects */}
         <div style={{
-          marginBottom: '100px',
+          marginBottom: '140px',
           marginTop: window.innerHeight > window.innerWidth ? '-120px' : '-80px', // Portrait: higher, Landscape: normal
           opacity: showLogo ? 1 : 0,
           transform: showLogo ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(20px)',
@@ -279,7 +279,7 @@ const EloraSplashScreen = ({ isVisible, onComplete }) => {
             fontWeight: '300',
             color: isLight ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.5)',
             letterSpacing: '0.05rem',
-            margin: '3rem 0 0 0',
+            margin: '5rem 0 0 0',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
           }}>
             v{packageJson.version}
