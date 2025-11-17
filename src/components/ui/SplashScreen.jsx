@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import packageJson from '../../../package.json';
 
 const EloraSplashScreen = ({ isVisible, onComplete }) => {
   const { isDark, isElora, isLight } = useTheme();
@@ -270,6 +271,18 @@ const EloraSplashScreen = ({ isVisible, onComplete }) => {
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
           }}>
             Powered by Elenor
+          </p>
+
+          {/* App Version */}
+          <p style={{
+            fontSize: 'clamp(0.8rem, 2vw, 0.95rem)',
+            fontWeight: '300',
+            color: isLight ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+            letterSpacing: '0.05rem',
+            margin: '1rem 0 0 0',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          }}>
+            v{packageJson.version}
           </p>
         </div>
 
