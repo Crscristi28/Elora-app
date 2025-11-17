@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omnia One AI - principy, hodnoty a funkcionality</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <span class="lang-option active">Čeština</span><a class="lang-option" href="../en/omnia-manifest.html">English</a><a class="lang-option" href="../ro/omnia-manifest.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Omnia One AI - principy, hodnoty a funkcionality</h1>
+<p>Tento manifest shrnuje, proc je Omnia navrzena jako offline-first AI asistent respektujici soukromi uzivatelu, a jak prakticky funguje. Opira se o zdrojovy kod projektu (IndexedDB chatDB, Supabase synchronizaci, API routy v adresari <code>api/</code>) a aktualni schopnosti aplikace.</p>
+<h2>1. Offline-first zazitek</h2>
+<ul>
+<li>Lokalni databaze <code>OmniaChatDB</code> (Dexie/IndexedDB) uklada chaty a prilohy primo v prohlizeci, aby bylo mozne pokracovat i bez pripojeni.</li>
+<li>Synchronizacni vrstva (<code>src/services/sync/chatSync.js</code>) odesila data do cloudu az ve chvili, kdy je dostupne pripojeni, a respektuje nastaveni uzivatele.</li>
+<li>Pokud nejsou environment variables Supabase dostupne, aplikace prechazi do lokalniho rezimu a nic neposila na server.</li>
+</ul>
+<h2>2. Ochrana soukromi a kontrola nad daty</h2>
+<ul>
+<li>Auth tokeny se overuji pouze na backendu (service role), klient nema pristup k citlivym klicum.</li>
+<li>RLS v Supabase zajistuji, ze uzivatel vidi jen sve chaty, zpravy a soubory.</li>
+<li>Souborovy storage (attachments, generated-images, generated-pdfs-temp) pouziva vlastnicka prava; mazat muze jen jejich autor.</li>
+<li>Funkce <code>delete-account.js</code> provadi uplne smazani uctu v Supabase vcetne kaskadniho odebrani profilu, chatu a zprav.</li>
+<li>Mazani jednotlivych chatu (<code>chatDB.deleteChat</code>) odstrani drive prilohy z cloud storage a pote zaznamy v databazi.</li>
+<li>Logika aplikace neprodava ani nesdili data tretim stranam mimo nezbytne API volani potrebna pro fungovani sluzby.</li>
+</ul>
+<h2>3. Data se nepouzivaji pro trenovani</h2>
+<ul>
+<li>Zadne API volani neposkytuje tretim stranam pravo data trvale skladovat za ucelem treninku vlastnich modelu; integrace (Google Vertex AI, Anthropic, OpenAI) jsou konfiguracne nastaveny pro rezimy bez opakovaneho trenovani podle vychozich podminek API.</li>
+<li>Ulozene logy obsahuji pouze technicke informace (status kod, ID zadosti) a nejsou vazane na obsah konverzaci.</li>
+</ul>
+<h2>4. Uzivatel ma sva data kdykoli k dispozici</h2>
+<ul>
+<li>Historie konverzaci je dostupna jak lokalne, tak po synchronizaci v Supabase.</li>
+<li>V UI lze chaty exportovat a ulozit; profil slouzi k personalizaci odpovedi.</li>
+<li>Pri zmene zarizeni se po prihlaseni obnovi stejna chat historie diky <code>chatSyncService</code>.</li>
+</ul>
+<h2>5. Co Omnia umi</h2>
+<ul>
+<li><strong>Textova AI</strong>: integrace s Gemini 2.5 Flash, Claude Sonnet/Haiku a GPT-4o; uzivatel muze plynule prepinat modely a stale pracuje ve stejne konverzaci.</li>
+<li><strong>Generovani obsahu</strong>: tvorba textu, shrnuti, strukturovane vystupy, PDF reporty (<code>api/generate-pdf.js</code>).</li>
+<li><strong>Prace se soubory</strong>: nahrane dokumenty zpracuje <code>api/process-document.js</code> (plain text i PDF pres Google Document AI).</li>
+<li><strong>Obrazky</strong>: AI generovane obrazky se ukladaji do Supabase storage (bucket <code>generated-images</code>) a jsou k dispozici ke stazeni.</li>
+<li><strong>Hlas</strong>: prevod hlasu na text <code>api/google-stt.js</code>, text na hlas <code>api/google-tts.js</code> nebo <code>api/elevenlabs-tts.js</code>.</li>
+<li><strong>Neomezeny chat</strong>: aplikace neumiestnuje umele limity na pocet konverzaci; historie se spravuje chytrym paginovanim a smazanim na prani.</li>
+<li><strong>Rychle sdileni</strong>: chat lze synchronizovat mezi zarizenimi v realnem case pomoci Supabase Realtime.</li>
+</ul>
+<h2>6. Proc je Omnia jina</h2>
+<ul>
+<li>Kombinuje vice AI modelu ve stejnem kontextu, proto muze uzivatel porovnavat odpovedi nebo prepinat podle potreby, aniz by prisel o historii.</li>
+<li>Offline-first architektura minimalizuje latenci a chrani soukromi; data zustavaji primarne u uzivatele.</li>
+<li>Vsechny dulezite bezpecnostni mechanismy (auth, storage, sync) jsou otevrene zdokumentovany v repozitari, aby bylo mozne auditovat chovani.</li>
+<li>Tymy mohou vyuzit Supabase metrics a exports pro dalsi pracovni postupy (napr. billing, kontrolu agentu).</li>
+<li>Aplikace podporuje vice jazyku (cz, en, ro, de atd.) a umi detekovat jazyk pri hovoru nebo textu.</li>
+</ul>
+<h2>7. Zavazky vuci uzivatelum</h2>
+<ul>
+<li>Transparentnost: aktualni podminky, zasady soukromi a tento manifest jsou dostupne ve slozce <code>pravni-dokumentace</code> a budou pravidelne aktualizovany.</li>
+<li>Odstraneni dat: zadost o vymaz projde skrz backend <code>delete-account.js</code> a soubory se odstrani i z cloud storage.</li>
+<li>Otevrene planovani: verejne dokumenty v adresari <code>docs/</code> popisuji budoucnost (napr. background agenti, realtime sync).</li>
+<li>Zpetna vazba: kontaktni e-mail <code>cristianbucioaca@omniaoneai.com</code> je primarni kanal pro dotazy, zadosti i report incidentu.</li>
+</ul>
+<hr>
+<p>Tento manifest slouzi jako verejne sdeleni o tom, jak se Omnia One AI stara o soukromi, jak funguje offline-first architektura a proc je reseni vhodne pro uzivatele, kteri chteji mit kontrolu nad svymi daty a soucasne vyuzivat vyspely AI ekosystem.</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,56 @@
+# 💰 MONETIZACE OMNIA - POSTUPNÝ PLÁN
+
+## FÁZE 1: ZÁKLADNÍ INFRASTRUKTURA (Start zde)
+1. **Usage Tracking Service** (`/src/services/usage/`)
+   - Sledování počtu zpráv, tokenů, upload velikostí
+   - Ukládání do IndexedDB + sync do Supabase
+   - Daily/monthly agregace
+
+2. **Subscription Service** (`/src/services/subscription/`)
+   - FREE vs PREMIUM tier definice
+   - Limit checking before API calls
+   - Grace period handling
+
+3. **Pricing Modal komponenta** (`/src/components/pricing/`)
+   - Clean pricing display
+   - Feature comparison table
+   - Upgrade CTAs
+
+## FÁZE 2: FREE TIER LIMITY
+1. **Free User Limits:**
+   - 50 zpráv/den
+   - 10MB upload limit
+   - Jen základní modely (Gemini Flash)
+
+2. **Limit Enforcement:**
+   - Block requests when limit reached
+   - Show upgrade prompts
+   - Soft vs hard limits
+
+## FÁZE 3: STRIPE INTEGRACE
+1. **Stripe Checkout**
+   - Vercel API routes pro webhooks
+   - Subscription management
+   - Payment success/failure handling
+
+2. **Premium Features Unlock:**
+   - Unlimited usage
+   - All AI models
+   - 100MB uploads
+   - Priority support
+
+## STRUKTURA:
+```
+/src/services/subscription/
+├── subscriptionService.js
+├── usageTracker.js
+├── planLimits.js
+└── stripeService.js
+
+/src/components/pricing/
+├── PricingModal.jsx
+├── UsageIndicator.jsx
+└── UpgradePrompt.jsx
+```
+
+**Začneme Usage Trackerem - nejkritičtější část pro monetizaci.**

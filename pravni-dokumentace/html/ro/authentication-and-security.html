@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Autentificare și securitate în Omnia</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/autentizace-a-bezpecnost.html">Čeština</a><a class="lang-option" href="../en/authentication-and-security.html">English</a><span class="lang-option active">Română</span>
+      </div>
+    </div>
+  </nav>
+<h1>Autentificare și securitate în Omnia</h1>
+<p>Acest document descrie modul în care sunt implementate autentificarea, autorizarea și protecția datelor în Omnia One AI. Informațiile provin din fișierele din directoarele <code>api/</code>, <code>src/services/</code>, <code>supabase/</code> și din documentația Supabase.</p>
+<h2>1. Înregistrare și autentificare</h2>
+<ul>
+<li>Înregistrarea și login-ul folosesc Supabase Auth (<code>supabase.auth.signUp</code>, <code>supabase.auth.signInWithPassword</code>).</li>
+<li>Supabase păstrează parolele hash-uite (bcrypt) și emite token-uri JWT care expiră după 60 de minute și se reînnoiesc automat.</li>
+<li>Pe client, <code>src/services/auth/supabaseAuth.js</code> oferă funcții pentru autentificare, delogare, resetare parolă (OTP) și ascultare a stării sesiunii.</li>
+<li>Token-urile nu sunt transmise direct către servicii terțe; la apelarea API-urilor Omnia sunt trimise prin antetul <code>Authorization: Bearer</code>.</li>
+</ul>
+<h2>2. Verificare pe backend</h2>
+<ul>
+<li>Rutele de pe server (<code>api/claude.js</code>, <code>api/gemini.js</code> etc.) inițializează Supabase cu cheia de service (<code>SUPABASE_SERVICE_ROLE_KEY</code>).</li>
+<li>Fiecare cerere extrage token-ul JWT din antet și îl verifică prin <code>supabase.auth.getUser(token)</code>.</li>
+<li>Token-urile invalide returnează status <code>401 Unauthorized</code>.</li>
+<li>După verificare, backend-ul interoghează tabela <code>profiles</code> pentru a afla rolul utilizatorului; lipsa unui profil implică rolul implicit <code>user</code>.</li>
+</ul>
+<h2>3. Roluri și permisiuni</h2>
+<ul>
+<li>Tabela <code>profiles</code> include coloana <code>role</code> (ex. <code>user</code>, <code>owner</code>).</li>
+<li>Rolurile pot fi configurate prin scriptul SQL <code>supabase/add-admin-role.sql</code>.</li>
+<li>Backend-ul folosește rolul pentru a debloca funcții privilegiate (instrumente de administrare, acces prioritar).</li>
+<li>Dacă rolul nu este găsit, sistemul revine la permisiunile standard de utilizator.</li>
+</ul>
+<h2>4. Row Level Security și acces la bază</h2>
+<ul>
+<li>Tabelele critice (<code>chats</code>, <code>messages</code>, <code>profiles</code>, <code>usage_metrics</code>, <code>subscriptions</code>) folosesc Row Level Security.</li>
+<li>Politicile impun <code>auth.uid() = user_id</code> (sau <code>auth.uid() = id</code> pentru <code>profiles</code>), astfel încât Utilizatorii accesează doar propriile înregistrări.</li>
+<li>Inserările și ștergerile necesită ca rândul să aparțină utilizatorului autentificat.</li>
+<li>Triggere precum <code>update_updated_at_column</code> actualizează câmpul <code>updated_at</code> pentru sincronizare.</li>
+</ul>
+<h2>5. Stocarea fișierelor</h2>
+<ul>
+<li>Atașamentele sunt stocate în Supabase Storage (bucket <code>attachments</code>), imaginile AI în <code>generated-images</code>, iar PDF-urile în <code>generated-pdfs-temp</code>.</li>
+<li>Încărcările prin <code>supabase.storage.from(bucket).upload(...)</code> setează automat <code>owner = auth.uid()</code>.</li>
+<li>Ștergerile folosesc <code>deleteFromSupabaseStorage</code>, permis doar proprietarului datorită politicilor Storage.</li>
+<li>La ștergerea chat-ului (<code>chatDB.deleteChat</code>), fișierele asociate sunt eliminate înainte de înregistrările din <code>messages</code> și <code>chats</code>.</li>
+</ul>
+<h2>6. Stocare locală și sincronizare</h2>
+<ul>
+<li>IndexedDB (Dexie) păstrează datele offline sub numele <code>OmniaChatDB</code>.</li>
+<li>Versiunile de schemă adaugă coloane noi (attachments, images, pdf, sources) cu log-uri de migrare.</li>
+<li>Sincronizarea cu Supabase este gestionată de <code>src/services/sync/chatSync.js</code>, care verifică autentificarea înainte de upload și transmite doar înregistrările utilizatorului curent.</li>
+<li>Ștergerile se propagă via Supabase Realtime, astfel încât celelalte dispozitive primesc actualizările.</li>
+</ul>
+<h2>7. Ștergerea contului și a datelor</h2>
+<ul>
+<li>Endpoint-ul <code>api/delete-account.js</code> apelează <code>supabase.auth.admin.deleteUser(userId)</code> pentru a șterge contul, declanșând ștergeri în cascade (profil, chat-uri, mesaje, fișiere).</li>
+<li>Operațiunea este ireversibilă; datele nu pot fi recuperate după finalizare.</li>
+<li>Utilizatorii își pot exporta conversațiile înainte de a solicita ștergerea.</li>
+</ul>
+<h2>8. Chei API și acces terț</h2>
+<ul>
+<li>Toate secretele (Google, Anthropic, OpenAI, ElevenLabs, Stripe) sunt încărcate din variabile de mediu și nu sunt expuse clientului.</li>
+<li>Backend-ul verifică existența cheilor și, în caz de lipsă, răspunde cu HTTP 500 și un mesaj sigur.</li>
+<li>Cererile către API-urile externe trimit doar datele necesare funcției respective (de ex. mesajul curent, textul pentru sinteză).</li>
+</ul>
+<h2>9. Răspuns la incidente</h2>
+<ul>
+<li>Erorile sunt logate în consolă (vizibile în logurile Vercel) cu minimul de date personale.</li>
+<li>Furnizorul monitorizează mesajele <code>console.error</code> și <code>console.warn</code> pentru a detecta problemele.</li>
+<li>În caz de incident, token-urile pot fi revocate în Supabase, iar cheile API pot fi rotite imediat.</li>
+</ul>
+<h2>10. Recomandări pentru utilizatori</h2>
+<ul>
+<li>Folosiți o parolă unică și activați MFA pe e-mailul asociat contului.</li>
+<li>La activitate suspectă, schimbați parola și contactați imediat suportul.</li>
+<li>Nu partajați token-uri sau chei API cu terți.</li>
+<li>Ștergeți periodic chat-urile și atașamentele inutile pentru a minimiza datele stocate.</li>
+</ul>
+<hr>
+<p>Documentul reflectă arhitectura de securitate Omnia One AI la 2 noiembrie 2025.</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,606 @@
+# 🧠 Vertex AI Implementation Guide - Omnia Memory System
+
+**Author:** Claude Code
+**Date:** 2025-10-04
+**Branch:** `summary-system-v2`
+**Status:** Planning Phase → Implementation Ready
+
+---
+
+## 📋 Table of Contents
+
+1. [Critical Understanding - How It Really Works](#1-critical-understanding)
+2. [Summary System Architecture](#2-summary-system-architecture)
+3. [Exact Mathematics & Flow](#3-exact-mathematics--flow)
+4. [Implementation Priority](#4-implementation-priority)
+5. [Vertex AI Capabilities](#5-vertex-ai-capabilities)
+6. [Future Options](#6-future-options)
+
+---
+
+## 1. Critical Understanding
+
+### ⚠️ VITAL CONCEPTS - DO NOT SKIP
+
+#### **Hierarchical Compression (The Core Principle)**
+
+**WRONG UNDERSTANDING ❌:**
+```
+Cyklus 2: Claude Haiku dostane zprávy 1-198 (celý chat roste)
+Cyklus 3: Claude Haiku dostane zprávy 1-297 (ještě větší chat)
+→ Náklady rostou lineárně! ❌
+```
+
+**CORRECT UNDERSTANDING ✅:**
+```
+Cyklus 1: Gemini Flash-Lite dostane zprávy 1-98
+Cyklus 2: Gemini Flash-Lite dostane Summary_1 + zprávy 99-197
+Cyklus 3: Gemini Flash-Lite dostane Summary_2 + zprávy 198-296
+→ Náklady KONSTANTNÍ (~10k tokenů)! ✅
+```
+
+#### **Why Summaries Are VITAL (Cannot Be Excluded)**
+
+1. **For Gemini Flash-Lite (Summarization):**
+   - Without previous summary: Would process entire chat (99 → 198 → 297 messages)
+   - With previous summary: Processes constant ~10k tokens (summary + 99 new messages)
+   - Hierarchical compression preserves entire history in compressed form
+
+2. **For Omnia (Gemini Flash - Responses):**
+   - Without summary: Would need entire chat in context (99 → 198 → 297 messages)
+   - With summary: Gets summary + last 6 messages + current
+   - Constant costs (~1k tokens instead of 100k+)
+   - Fast response regardless of conversation length
+
+**Summaries are the backbone of the entire system, not an optional feature!**
+
+---
+
+## 2. Summary System Architecture
+
+### 🎯 Goal
+Implement cyclical conversation summarization to reduce token costs by 98%+ while maintaining constant response speed regardless of conversation length.
+
+### 📊 High-Level Flow
+
+```
+User sends message #99 → TRIGGER!
+    ↓
+1. Call /api/summarize → Gemini 2.5 Flash-Lite (Vertex AI)
+   Input: Previous Summary (if exists) + Messages since last summary
+   Output: New Summary (~300 words)
+    ↓
+2. Save summary to IndexedDB
+   Type: 'omnia' (normal message type)
+   hasMetadata: true
+   metadata: { summaryContent, summarizedCount }
+    ↓
+3. Call /api/gemini → Gemini 2.5 Flash (Vertex AI)
+   Context: [Summary + Last 6 messages + Current message]
+   Output: Omnia response
+    ↓
+4. Display in ONE message:
+   - Summary Card (collapsible, at top)
+   - + Omnia's normal response (below card)
+    ↓
+5. RESET COUNTER to 0
+   - CRITICAL: Without reset = infinite loop!
+```
+
+### 🔄 Hierarchical Compression Chain
+
+```
+Summary_1 = Gemini Flash-Lite(messages 1-98)
+Summary_2 = Gemini Flash-Lite(Summary_1 + messages 99-197)
+Summary_3 = Gemini Flash-Lite(Summary_2 + messages 198-296)
+Summary_N = Gemini Flash-Lite(Summary_{N-1} + messages since last summary)
+```
+
+**Key principle:** Only ONE summary stored per chat (always the latest, overwrites previous).
+
+---
+
+## 3. Exact Mathematics & Flow
+
+### 📐 Testing Mode (Rapid Iteration)
+
+**Constants:**
+```javascript
+const TRIGGER_THRESHOLD = 9;  // Trigger after 9 messages
+const RECENT_MESSAGES_COUNT = 4;  // Include last 4 messages in context
+```
+
+#### **Cycle 1: Messages 1-9**
+
+```
+Message #1 (user)
+Message #2 (omnia)
+...
+Message #8 (omnia)
+Message #9 (user) ← TRIGGER!
+
+Counter check:
+  lastSummaryIndex = -1 (no summary yet)
+  messagesSinceSummary = messages.length = 9
+  if (messagesSinceSummary >= 9) → TRIGGER! ✅
+
+1. Gemini Flash-Lite summarization:
+   Input: Messages 1-8 (all messages before #9)
+   Output: Summary_1
+   Tokens: ~10,000
+
+2. Omnia (Gemini Flash) response to #9:
+   Context:
+     - Summary_1 (~400 tokens)
+     - Messages 5-8 (last 4 messages, ~400 tokens)
+     - Message #9 (current, ~100 tokens)
+   Total context: ~900 tokens
+
+3. Message #10 (omnia):
+   Content:
+     ┌─────────────────────────┐
+     │  📊 Summary Card        │
+     │  Summary_1 content      │
+     │  "Summarized 8 messages"│
+     └─────────────────────────┘
+
+     Omnia's normal response to message #9...
+
+4. COUNTER RESET:
+   messagesSinceSummary = 0
+```
+
+#### **Cycle 2: Messages 10-18**
+
+```
+Message #10 (omnia) - has summary card
+Message #11 (user)
+...
+Message #17 (omnia)
+Message #18 (user) ← TRIGGER!
+
+Counter check:
+  lastSummaryIndex = 9 (message #10 has summary)
+  messagesSinceSummary = 18 - 10 - 1 = 8
+  Wait... not yet! Continue...
+
+Message #19 (user) ← NOW TRIGGER!
+  messagesSinceSummary = 19 - 10 - 1 = 8... still not 9!
+
+Actually, let me recalculate:
+  Total messages: 19
+  Last summary at index: 9 (message #10)
+  Messages after summary: messages 11-19 = 9 messages
+  messagesSinceSummary = 9 → TRIGGER! ✅
+
+1. Gemini Flash-Lite summarization:
+   Input:
+     - Summary_1 (~400 tokens)
+     - Messages 10-18 (9 new messages, ~900 tokens)
+   Output: Summary_2 (compresses Summary_1 + new messages)
+   Tokens: ~1,300 (NOT 20k!)
+
+2. Omnia (Gemini Flash) response to #19:
+   Context:
+     - Summary_2 (~400 tokens)
+     - Messages 16-18 (last 4 messages)
+     - Message #19 (current)
+   Total context: ~900 tokens
+
+3. Message #20 (omnia):
+   Content: Summary Card (Summary_2) + response
+
+4. COUNTER RESET:
+   Summary_2 overwrites Summary_1 in DB
+   messagesSinceSummary = 0
+```
+
+#### **Cycle 3: Messages 20-29 (and so on...)**
+
+```
+Same pattern repeats:
+- Every 9 messages after last summary → TRIGGER
+- Flash-Lite gets: Previous Summary + 9 new messages
+- Omnia gets: Latest Summary + last 4 messages + current
+- Counter resets after each summary
+```
+
+---
+
+### 📐 Production Mode (Real Usage)
+
+**Constants:**
+```javascript
+const TRIGGER_THRESHOLD = 99;  // Trigger after 99 messages
+const RECENT_MESSAGES_COUNT = 6;  // Include last 6 messages in context
+```
+
+#### **Cycle 1: Messages 1-99**
+
+```
+Messages 1-98 accumulate...
+Message #99 (user) ← TRIGGER!
+
+Counter check:
+  lastSummaryIndex = -1
+  messagesSinceSummary = 99
+  if (messagesSinceSummary >= 99) → TRIGGER! ✅
+
+1. Gemini Flash-Lite summarization:
+   Input: Messages 1-98
+   Output: Summary_1
+   Tokens: ~10,000
+
+2. Omnia response to #99:
+   Context: Summary_1 + messages 94-98 + msg #99
+   Tokens: ~1,200
+
+3. Message #100 (omnia):
+   Summary Card (Summary_1) + response
+
+4. COUNTER RESET
+```
+
+#### **Cycle 2: Messages 100-198**
+
+```
+Message #198 (user) ← TRIGGER!
+
+Counter check:
+  lastSummaryIndex = 99 (message #100)
+  messagesSinceSummary = 198 - 100 - 1 + 1 = 98... wait
+
+Let me count properly:
+  After message #100 (summary), we have:
+  Messages 101, 102, ..., 198 = 98 messages
+  On message #199 → 99 messages since summary → TRIGGER!
+
+1. Gemini Flash-Lite summarization:
+   Input:
+     - Summary_1 (~400 tokens)
+     - Messages 100-198 (99 new messages, ~10k tokens)
+   Output: Summary_2
+   Tokens: ~10,400 (constant!)
+
+2. Omnia response to #199:
+   Context: Summary_2 + messages 194-198 + msg #199
+   Tokens: ~1,200
+
+3. Message #200 (omnia):
+   Summary Card (Summary_2) + response
+
+4. COUNTER RESET
+```
+
+---
+
+### 🔢 Counter Logic (Critical!)
+
+**Implementation:**
+```javascript
+// In App.jsx, when user sends message
+
+// 1. Find last summary in messages array
+const lastSummaryIndex = messages.findLastIndex(
+  msg => msg.hasMetadata && msg.metadata?.summaryContent
+);
+
+// 2. Calculate messages since last summary
+const messagesSinceSummary = lastSummaryIndex === -1
+  ? messages.length  // No summary yet, count all messages
+  : messages.length - lastSummaryIndex - 1;  // Count after last summary
+
+// 3. Check trigger
+const TRIGGER_THRESHOLD = 9;  // Testing: 9, Production: 99
+
+if (messagesSinceSummary >= TRIGGER_THRESHOLD) {
+  // TRIGGER SUMMARIZATION!
+
+  // 4. After summary created and saved:
+  // Counter automatically resets because new summary message
+  // becomes the new "lastSummaryIndex" for next calculation
+}
+```
+
+**Why this works:**
+- ✅ No manual counter state needed
+- ✅ Source of truth = messages in IndexedDB
+- ✅ Auto-resets after each summary (new summary becomes reference point)
+- ✅ Survives page refresh
+- ✅ Cannot get out of sync
+
+**Why counter MUST reset:**
+```
+WITHOUT RESET:
+Counter = 9 → trigger → summary created
+Counter = 10 → trigger AGAIN!
+Counter = 11 → trigger AGAIN!
+→ INFINITE LOOP! ❌
+
+WITH RESET (automatic via lastSummaryIndex):
+Counter = 9 → trigger → summary at index 10
+Counter = 0 (messages.length - 10 - 1 = 0)
+Counter grows: 1, 2, 3... 9 → trigger again ✅
+```
+
+---
+
+## 4. Implementation Priority
+
+### ⚠️ PHASE 0: Verify Gemini Flash-Lite Access
+
+**Gemini Flash-Lite is already available on Vertex AI with existing credentials!**
+
+**Model Details:**
+- Model name: `gemini-2.5-flash-lite`
+- Input token limit: 1,048,576 (1M tokens)
+- Output token limit: 64k
+- Features: Thinking mode, Function calling, Google Search grounding
+- Pricing: ~$0.075/1M input, ~$0.30/1M output (3-4x cheaper than Claude Haiku!)
+
+**No new SDK or credentials needed** - uses existing Vertex AI setup!
+
+---
+
+### 📁 Phase 1: Files to Create/Modify
+
+#### **New Files:**
+
+1. **`/api/summarize.js`** - Gemini Flash-Lite endpoint (production)
+   ```javascript
+   import { VertexAI } from '@google-cloud/vertexai';
+
+   const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+
+   const vertexAI = new VertexAI({
+     project: process.env.GOOGLE_CLOUD_PROJECT_ID,
+     location: 'us-central1',
+     googleAuthOptions: {
+       credentials: credentials,
+       scopes: ['https://www.googleapis.com/auth/cloud-platform']
+     }
+   });
+
+   const model = vertexAI.getGenerativeModel({
+     model: 'gemini-2.5-flash-lite'
+   });
+
+   const response = await model.generateContent({
+     contents: [{
+       role: 'user',
+       parts: [{
+         text: `Previous summary: ${previousSummary}\n\nNew messages: ${newMessages}\n\nCreate concise summary.`
+       }]
+     }]
+   });
+   ```
+
+2. **`/src/utils/contextBuilder.js`** - Smart context management
+   ```javascript
+   // Constants (change for testing vs production)
+   const TRIGGER_THRESHOLD = 9;  // Testing: 9, Production: 99
+   const RECENT_MESSAGES_COUNT = 4;  // Testing: 4, Production: 6
+
+   export const shouldTriggerSummarization = (messages) => {
+     const lastSummaryIndex = messages.findLastIndex(
+       msg => msg.hasMetadata && msg.metadata?.summaryContent
+     );
+
+     const messagesSinceSummary = lastSummaryIndex === -1
+       ? messages.length
+       : messages.length - lastSummaryIndex - 1;
+
+     return messagesSinceSummary >= TRIGGER_THRESHOLD;
+   };
+
+   export const buildContextForOmnia = (messages) => {
+     // Find latest summary
+     const latestSummary = messages.slice().reverse().find(
+       msg => msg.hasMetadata && msg.metadata?.summaryContent
+     );
+
+     // Get recent messages (excluding summary messages)
+     const recentMessages = messages
+       .filter(msg => !msg.metadata?.summaryContent)
+       .slice(-RECENT_MESSAGES_COUNT);
+
+     return {
+       summary: latestSummary?.metadata?.summaryContent || null,
+       recentMessages
+     };
+   };
+
+   export const getMessagesToSummarize = (messages) => {
+     const lastSummaryIndex = messages.findLastIndex(
+       msg => msg.hasMetadata && msg.metadata?.summaryContent
+     );
+
+     if (lastSummaryIndex === -1) {
+       // First summary: all messages except the last one (trigger message)
+       return {
+         previousSummary: null,
+         messagesToSummarize: messages.slice(0, -1)
+       };
+     } else {
+       // Subsequent summaries: previous summary + new messages
+       const previousSummary = messages[lastSummaryIndex].metadata.summaryContent;
+       const messagesToSummarize = messages.slice(lastSummaryIndex + 1, -1);
+
+       return {
+         previousSummary,
+         messagesToSummarize
+       };
+     }
+   };
+   ```
+
+3. **`/src/components/chat/SummaryCard.jsx`** - UI component
+   ```jsx
+   import React, { useState } from 'react';
+   import { useTheme } from '../../contexts/ThemeContext';
+
+   const SummaryCard = ({ summaryContent, summarizedCount }) => {
+     const { isDark } = useTheme();
+     const [isExpanded, setIsExpanded] = useState(false);
+
+     return (
+       <div className={`summary-card ${isDark ? 'dark' : 'light'}`}>
+         <div className="summary-header" onClick={() => setIsExpanded(!isExpanded)}>
+           <span>📊 Conversation Summary ({summarizedCount} messages)</span>
+           <span>{isExpanded ? '▼' : '▶'}</span>
+         </div>
+         {isExpanded && (
+           <div className="summary-content">
+             {summaryContent}
+           </div>
+         )}
+       </div>
+     );
+   };
+
+   export default SummaryCard;
+   ```
+
+#### **Modified Files:**
+
+1. **`/src/App.jsx`**
+   - Import contextBuilder utilities
+   - Before calling Gemini:
+     - Check `shouldTriggerSummarization(messages)`
+     - If trigger: Call `/api/summarize`
+     - Save summary to IndexedDB with metadata
+     - Build smart context with `buildContextForOmnia()`
+   - Display SummaryCard in message (conditional rendering)
+
+2. **`/src/components/chat/MessageItem.jsx`**
+   - Check if message has `metadata.summaryContent`
+   - If yes, render `<SummaryCard />` above message text
+
+3. **`/src/services/storage/chatDB.js`**
+   - Verify schema supports `metadata` field (likely already exists)
+   - No schema change needed if metadata field exists
+
+---
+
+## 5. Vertex AI Capabilities
+
+### 🤖 Available Models on Vertex AI
+
+#### **Gemini Models** (Google)
+
+| Model | Input | Output | Features |
+|-------|-------|--------|----------|
+| **Gemini 2.5 Flash** | $0.60/1M | $3.50/1M (thinking) | Google Search grounding, Thinking mode, Tools |
+| **Gemini 2.5 Flash-Lite** | $0.10/1M | $0.40/1M | Fast, cheap, no thinking |
+
+#### **Claude Models** (Anthropic via Vertex)
+
+| Model | Input | Output | Features |
+|-------|-------|--------|----------|
+| **Claude Opus 4.1** | ~$15/1M | ~$75/1M | Most intelligent, agentic |
+| **Claude Sonnet 4.5** | $3/1M | $15/1M | Best reasoning, coding |
+| **Claude Haiku 3.5** | $0.25/1M | $1.25/1M | Fast, cheap, smart |
+| **Gemini 2.5 Flash-Lite** | $0.075/1M | $0.30/1M | Most cost-effective |
+
+### 💳 Billing & Credentials
+
+**HUGE ADVANTAGE:** All Vertex AI models (Gemini + Claude) use:
+- ✅ Same Google Cloud project
+- ✅ Same credentials (`GOOGLE_APPLICATION_CREDENTIALS`)
+- ✅ Same Vertex AI setup
+- ✅ **One consolidated bill** from Google Cloud
+
+**No need for:**
+- ❌ Separate Anthropic API key (for Vertex Claude)
+- ❌ Multiple billing accounts
+- ❌ Different authentication systems
+
+**Exception:** Claude's native `web_search_20250305` tool is only available via Anthropic API (not Vertex).
+
+---
+
+## 6. Future Options
+
+### Option A: Current Implementation (Recommended)
+
+```
+Main Chat: Gemini 2.5 Flash (Vertex)
+├─ Google Search grounding ✅
+├─ Thinking mode ✅
+├─ Fast & reasonable cost ✅
+└─ Tools (image/PDF) ✅
+
+Summary: Gemini 2.5 Flash-Lite (Vertex)
+├─ Expert compression ✅
+├─ MOST cost effective (3-4x cheaper than Haiku!) ✅
+├─ Same SDK & credentials ✅
+└─ Same billing ✅
+```
+
+### Option B: Hybrid Routing (Future)
+
+```javascript
+if (needsSearch) {
+  return geminiFlash();  // Has Google Search
+} else if (needsDeepReasoning) {
+  return claudeSonnet();  // Best reasoning
+} else {
+  return geminiFlash();  // Default, cheap
+}
+```
+
+---
+
+## 💰 Cost Analysis
+
+### Scenario: 1000-message conversation
+
+**Without Summaries:**
+- Context: 1000 messages × 100 tokens = 100,000 tokens
+- Cost per response: 100k × $0.60/1M = **$0.06**
+
+**With Summaries (Gemini Flash-Lite):**
+- 10 summaries created (every 99 messages)
+- Summary creation cost: 10 × 10k tokens × $0.075/1M = $0.0075
+- Context per response: Summary (400 tokens) + 6 messages (600 tokens) = 1,000 tokens
+- Cost per response: 1k × $0.60/1M = **$0.0006**
+- **Savings: 99%** 🎉
+- **Additional savings:** Flash-Lite is 10x cheaper than Haiku for summarization!
+
+---
+
+## 📝 Critical Reminders
+
+### ⚠️ Things That Caused Errors Before
+
+1. **Counter didn't reset** → Infinite loop of summaries
+2. **Summary + response in separate messages** → Should be ONE message
+3. **Flash-Lite got entire chat every time** → Should get previous summary + new messages
+4. **Testing with production numbers** → Use 9 messages for testing, not 99
+
+### ✅ Correct Implementation Checklist
+
+- [ ] Counter resets automatically (via lastSummaryIndex logic)
+- [ ] Summary Card + response in ONE message
+- [ ] Flash-Lite gets: Previous Summary + New Messages (NOT entire chat)
+- [ ] Omnia gets: Latest Summary + Last 6 messages + Current
+- [ ] Testing mode uses: Trigger=9, Recent=4
+- [ ] Production mode uses: Trigger=99, Recent=6
+- [ ] Gemini Flash-Lite model: `gemini-2.5-flash-lite`
+
+---
+
+## 🚀 Next Steps
+
+1. **Create `/api/summarize.js`** - Gemini Flash-Lite endpoint
+2. **Create `/src/utils/contextBuilder.js`** - Smart context management
+3. **Create `/src/components/chat/SummaryCard.jsx`** - UI component
+4. **Update `/src/App.jsx`** - Integrate summary trigger logic
+5. **Update `/src/components/chat/MessageItem.jsx`** - Render SummaryCard
+6. **Test with 9 messages:** Verify trigger, summary, context, reset
+7. **Switch to production:** Change constants to 99/6
+8. **Monitor costs:** Track token usage and cost savings
+
+---
+
+**Ready to implement! 🎯**

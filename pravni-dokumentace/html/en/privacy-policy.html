@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omnia One AI Privacy Policy</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/zasady-ochrany-soukromi.html">Čeština</a><span class="lang-option active">English</span><a class="lang-option" href="../ro/privacy-policy.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Omnia One AI Privacy Policy</h1>
+<p>Effective date: 2 November 2025</p>
+<p>This Privacy Policy explains what personal data the Omnia One AI application processes, for what purposes and how it is protected. The controller is Cristian Bucioaca, contact: <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>.</p>
+<h2>1. Roles under GDPR</h2>
+<ul>
+<li>The Provider acts as the data controller for personal data submitted by users or generated while using the application.</li>
+<li>Third-party platforms (Supabase, Google Cloud, OpenAI, Anthropic, ElevenLabs, Stripe) act as processors or independent controllers depending on the service they deliver.</li>
+<li>Data are shared with third parties only to the extent necessary to provide the Service.</li>
+</ul>
+<h2>2. Categories of Processed Data</h2>
+<ol>
+<li><strong>Identification and login data</strong>: e-mail, hashed password, internal user ID.</li>
+<li><strong>Profile information</strong>: optional display name and nickname, preferred localisation.</li>
+<li><strong>Chat content and attachments</strong>: text messages, system metadata, files uploaded by the user (PDF, images, documents), AI-generated outputs.</li>
+<li><strong>Technical metadata</strong>: device ID, timestamps, browser version, error logs.</li>
+<li><strong>Usage metrics</strong>: message counts, token usage, subscription activity (if enabled).</li>
+<li><strong>Payment data</strong>: handled by Stripe; the application stores only reference identifiers (customer_id, subscription_id).</li>
+<li><strong>Voice data</strong>: short-lived audio streams for speech-to-text or text-to-speech conversions; they are not stored after processing.</li>
+</ol>
+<h2>3. Purposes and Legal Basis</h2>
+<table>
+<thead>
+<tr>
+<th>Purpose</th>
+<th>Data categories</th>
+<th>Legal basis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Providing core functionality (login, chat, sync)</td>
+<td>identification, profile, chat content, technical</td>
+<td>performance of contract (GDPR Art. 6(1)(b))</td>
+</tr>
+<tr>
+<td>Document processing, AI generation, voice features</td>
+<td>chat content, attachments, voice data</td>
+<td>performance of contract</td>
+</tr>
+<tr>
+<td>Security and fraud prevention (logging, token checks)</td>
+<td>technical metadata</td>
+<td>legitimate interest (security)</td>
+</tr>
+<tr>
+<td>Billing and invoicing</td>
+<td>identification data, usage metrics, payment identifiers</td>
+<td>performance of contract / legal obligation</td>
+</tr>
+<tr>
+<td>Product improvement (aggregated analytics)</td>
+<td>aggregated usage data</td>
+<td>legitimate interest</td>
+</tr>
+</tbody>
+</table>
+<h2>4. Data Sharing</h2>
+<ul>
+<li><strong>Supabase</strong> (EU regions): authentication, database (profiles, chats, messages), Storage (attachments, generated-images, generated-pdfs-temp), realtime.</li>
+<li><strong>Google Cloud</strong> (EU and US regions per configuration): Vertex AI Gemini, Document AI, Text-to-Speech, Speech-to-Text, Cloud Storage for temporary processing. Credentials are provided as JSON via server-side environment variables.</li>
+<li><strong>Anthropic</strong>: Claude API for generative responses and web search. Only the relevant conversation context and supported attachments are transmitted.</li>
+<li><strong>OpenAI</strong>: GPT-4o for additional generative capabilities. System instructions and portions of the conversation are sent as required.</li>
+<li><strong>ElevenLabs</strong>: Text-to-Speech streaming; only the current text response is transmitted.</li>
+<li><strong>Stripe</strong>: subscription management; only tokenised identifiers are stored in the application.</li>
+<li><strong>Google Search / external sources</strong>: when web search is enabled, the query is sent without personal identifiers.</li>
+</ul>
+<p>No data are sold to third parties or shared for third-party marketing.</p>
+<h2>5. Storage and Retention</h2>
+<ul>
+<li><strong>Supabase</strong>: data are stored until the User deletes the chat or the entire account. The interface explains the effects and requires the User to type <code>DELETE</code> and confirm the action directly in-app; no e-mail confirmation is issued. After confirmation the backend <code>delete-account.js</code> calls <code>supabase.auth.admin.deleteUser</code> and cascades profiles, chats, messages and related Storage objects.</li>
+<li><strong>IndexedDB</strong> in the browser: the local <code>OmniaChatDB</code> database holds chats for offline access. Users can delete the data in settings or during sign-out.</li>
+<li><strong>Temporary storage</strong>: uploaded files processed through Document AI may be stored briefly in Google Cloud Storage; after completion both temporary files and metadata are removed.</li>
+<li><strong>Server logs</strong>: retained for up to 30 days for incident response and then anonymised or deleted.</li>
+<li><strong>Invoices and payment records</strong>: kept by Stripe in accordance with legal requirements.</li>
+</ul>
+<h2>6. Security Measures</h2>
+<ul>
+<li>All tables in Supabase have Row Level Security rules enforcing <code>auth.uid()</code>.</li>
+<li>Storage objects rely on the built-in <code>owner</code> field, allowing only the owner to delete files.</li>
+<li>Access tokens are verified on the backend using the Supabase service role key.</li>
+<li>Passwords are hashed by Supabase according to current security standards.</li>
+<li>All API communication is encrypted (HTTPS).</li>
+<li>When a chat is deleted the application removes Storage files first (<code>deleteStorageFiles</code>), then deletes conversations and sync records.</li>
+<li>Access to critical credentials (Google, OpenAI, Anthropic, ElevenLabs) is limited to server-side code.</li>
+</ul>
+<h2>7. User Rights</h2>
+<p>Users have the following rights under GDPR:</p>
+<ol>
+<li><strong>Access</strong>: request a copy of their data (available via account export).</li>
+<li><strong>Rectification</strong>: update profile information (handled by <code>ProfileService.saveProfile</code>).</li>
+<li><strong>Erasure</strong>: delete chats, attachments or the entire account using the provided controls.</li>
+<li><strong>Restriction</strong>: disable synchronisation or cancel subscriptions.</li>
+<li><strong>Portability</strong>: request export of conversations in JSON/CSV format.</li>
+<li><strong>Objection</strong>: object to processing based on legitimate interests.</li>
+<li><strong>Complaint</strong>: lodge a complaint with the Office for Personal Data Protection (<a href="http://www.uoou.cz">www.uoou.cz</a>).</li>
+</ol>
+<p>Requests can be sent to <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>. The Provider will respond within 30 days.</p>
+<h2>8. Automated Decision-Making</h2>
+<p>AI responses are generated using third-party models based on system instructions and conversation history. The Service does not apply automated decision-making that produces legal or similarly significant effects without human oversight. Subscription and billing follow transparent rules.</p>
+<h2>9. Changes to this Policy</h2>
+<p>This document may be updated when technical or legal changes occur. Users will be informed about significant changes by e-mail or in-app notice at least 14 days before they take effect. Previous versions are archived and can be provided on request.</p>
+<hr>
+<p>This policy reflects the implementation of Omnia One AI as of 2 November 2025.</p>
+  </main>
+</body>
+</html>

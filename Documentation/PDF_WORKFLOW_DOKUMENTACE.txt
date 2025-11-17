@@ -1,0 +1,179 @@
+================================================================================
+                            PDF WORKFLOW DOKUMENTACE - OMNIA
+                                    Verze: 2024-12-22
+================================================================================
+
+1. PŘEHLED SYSTÉMU
+================================================================================
+PDF systém v Omnia má 3 hlavní části:
+- Generování PDF (AI + storage upload)
+- Lokální zobrazení (React PDF viewer)
+- Synchronizace mezi zařízeními (IndexedDB ↔ Supabase)
+
+2. PDF GENEROVÁNÍ WORKFLOW
+================================================================================
+Krok 1: AI generuje PDF obsah
+├─ Uživatel pošle request na generování PDF
+├─ AI model (Claude/GPT) vytvoří HTML/markdown obsah
+└─ Server renderuje PDF pomocí Puppeteer/headless Chrome
+
+Krok 2: Upload do Supabase Storage
+├─ PDF se nahraje do bucket 'generated-pdfs-temp'
+├─ Vytvoří se unique filename: {timestamp}-{random}.pdf
+├─ Vrátí se storageUrl (https://...) a path
+└─ Base64 data se zachovají jako offline fallback
+
+Krok 3: Uložení do message objektu
+├─ Vytvoří se message s PDF objektem:
+│  {
+│    pdf: {
+│      title: "User-defined nebo AI-generated název",
+│      storageUrl: "https://supabase.../file.pdf",
+│      base64: "optional offline fallback data",
+│      timestamp: Date.now(),
+│      filename: "original-name.pdf"
+│    }
+│  }
+├─ Uložení do IndexedDB (lokální storage)
+└─ Zobrazení v chat UI
+
+3. PDF ZOBRAZENÍ (MessageItem.jsx)
+================================================================================
+PDF Viewer Chain (priorita sestupně):
+1. storageUrl (nejrychlejší - online)
+2. base64 fallback (offline mode)
+3. string format (backward compatibility)
+
+Kód lokace: /src/components/chat/MessageItem.jsx:384-400
+
+Memory Management:
+├─ pdfDataUrl state se nastaví při otevření vieweru
+├─ PDF se renderuje pomocą @react-pdf-viewer
+├─ při zavření: setPdfDataUrl(null) → uvolní RAM
+└─ Žádné memory leaks!
+
+4. SYNCHRONIZACE WORKFLOW
+================================================================================
+Upload Workflow (zařízení A → Supabase):
+├─ Message s PDF objektem v IndexedDB
+├─ chatSync.js transformuje PDF na minimal object:
+│  {
+│    title: "název pro zobrazení",
+│    storageUrl: "https://...",
+│    base64: null nebo offline data
+│  }
+├─ Upload do Supabase messages table
+└─ PDF column obsahuje JSON object
+
+Download Workflow (Supabase → zařízení B):
+├─ Sync stáhne messages z Supabase
+├─ PDF je již ve finálním minimal object formátu
+├─ Uložení do IndexedDB na zařízení B
+├─ Zobrazení v UI s původním názvem
+└─ Offline fallback díky base64 (pokud je k dispozici)
+
+5. FORMÁTY PDF OBJEKTŮ
+================================================================================
+Legacy Format (starší verze):
+msg.pdf = "https://storage-url-string"
+
+Current Format (Option B - aktuální):
+msg.pdf = {
+  title: "PDF Document Name",
+  storageUrl: "https://supabase.../file.pdf",
+  base64: "base64data..." nebo null
+}
+
+Backward Compatibility:
+├─ MessageItem.jsx podporuje oba formáty
+├─ String format → fallback na "Generated PDF" název
+└─ Object format → zachová původní název
+
+6. SOUBORY A LOKACE
+================================================================================
+Core Files:
+├─ /src/components/chat/MessageItem.jsx (lines 380-400)
+│  └─ PDF viewer logika, memory management
+├─ /src/services/sync/chatSync.js (lines 209-222)
+│  └─ PDF sync transformace, upload/download
+├─ /src/services/storage/supabaseStorage.js
+│  └─ Upload/download z Supabase Storage
+└─ /src/components/ui/PdfViewer.jsx
+   └─ Clean PDF viewer component
+
+API Endpoints:
+├─ /api/pdf-generate.js → PDF generování
+├─ /api/upload-to-supabase.js → Storage upload
+└─ Supabase Storage buckets: 'generated-pdfs-temp', 'generated-images', 'attachments'
+
+7. MEMORY MANAGEMENT
+================================================================================
+Problém (před opravou):
+├─ pdfDataUrl se nikdy nevyčistilo
+├─ Base64 data zůstávala v React state
+└─ Memory leak při více otevřených PDF
+
+Řešení (aktuální):
+├─ setPdfDataUrl(null) při zavření vieweru
+├─ Storage URL místo base64 v RAM většinu času
+├─ Base64 jen jako offline fallback
+└─ Garbage collection správně funguje
+
+8. CHYBY A ŘEŠENÍ
+================================================================================
+"No PDF data available":
+├─ Příčina: PDF objekt bez storageUrl a base64
+├─ Řešení: Sync přeskočí PDF bez storageUrl
+└─ Prevence: Validace před upload
+
+"PDF se nezobrazí na zařízení B":
+├─ Příčina: Race condition při sync
+├─ Řešení: Option B - minimal object format
+└─ Status: ✅ Vyřešeno
+
+"Generated PDF" místo původního názvu:
+├─ Příčina: String format ztratil title metadata
+├─ Řešení: Object format s title fieldem
+└─ Status: ✅ Vyřešeno v Option B
+
+9. DEBUGGING
+================================================================================
+Console Logs:
+├─ [PDF-VIEWER] - Viewer operace
+├─ [SYNC] - Synchronizace operace
+├─ [STORAGE] - Upload/download operace
+└─ [MEMORY] - Memory management
+
+Kontrolní body:
+├─ IndexedDB → Developer Tools → Application
+├─ Supabase Dashboard → Storage/Database
+├─ Network tab → PDF download requests
+└─ Memory tab → Heap snapshots pro memory leaks
+
+10. OFFLINE FUNKČNOST
+================================================================================
+Online mode:
+├─ Používá storageUrl (rychlé)
+├─ PDF se stahuje z Supabase Storage
+└─ Optimální performance
+
+Offline mode:
+├─ Fallback na base64 data z IndexedDB
+├─ PDF funguje bez internetového připojení
+├─ Stejná funkčnost jako online
+└─ Horší performance (větší data)
+
+11. FUTURE IMPROVEMENTS
+================================================================================
+Možná vylepšení:
+├─ PDF thumbnails pro preview
+├─ Lazy loading pro velké PDF
+├─ Compression base64 dat pro offline
+├─ PDF caching strategy
+└─ Progressive loading pro pomalé sítě
+
+================================================================================
+Poslední update: 2024-12-22
+Autor: Claude Code + Cristian
+Status: ✅ Production Ready
+================================================================================

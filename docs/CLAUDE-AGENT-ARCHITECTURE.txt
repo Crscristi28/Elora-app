@@ -1,0 +1,479 @@
+# 🤖 Claude Agent Architecture - Omnia Tool System
+
+**Status:** 📋 Planning & Research Complete
+**Datum:** 2025-01-17
+**Cíl:** Jednoduchý, cost-efektivní systém pro orchestraci tools pomocí Claude Sonnet 4.5
+
+---
+
+## 📊 Architektura - 3-Tier Systém
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        USER QUERY                            │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  🚀 GEMINI FLASH (Main Model) - 90% času                    │
+│  • Běžný chat                                                │
+│  • Google Search grounding                                   │
+│  • Cost: ~$0.50 per 900 queries                             │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  🎯 FLASH LITE (Intent Detector) - Ultra cheap              │
+│  • Detekuje "query" vs "request"                            │
+│  • Cost: $0.075/1M tokens                                   │
+│  • Rozhoduje: "Needs tools?" → Wake Claude                  │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼ (Only if tools needed - 10% času)
+┌─────────────────────────────────────────────────────────────┐
+│  🧠 CLAUDE SONNET 4.5 (Tool Agent) - Spí 90% času          │
+│  • generate_pdf (PDF creation)                              │
+│  • generate_image (Imagen API)                              │
+│  • Paralelní volání všech tools najednou                    │
+│  • Prompt caching: 90% cost savings                         │
+│  • Cost: $3-15/1M tokens (když je aktivní)                 │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   OMNIA UI + RESULTS                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎯 Proč tento design?
+
+### ❌ Původní plán (příliš složitý):
+- Gemini agent pro každý tool (PDF Agent, Image Agent, Search Agent...)
+- Intent Classifier pro routing mezi agenty
+- Vertex AI limitation: "Multiple tools are supported only when they are all search tools"
+- 10+ komponent k údržbě
+
+### ✅ Nový plán (jednoduchý):
+- **1 Claude agent** pro všechny tools
+- **1 Intent detector** (Flash Lite) pro rozhodování
+- **Gemini Flash** zůstává hlavní model
+- Claude může volat tools **paralelně** bez omezení
+- Claude "spí" 90% času → levnější
+
+---
+
+## 🔍 Research Findings - Claude Sonnet 4.5
+
+### Model Info
+```javascript
+model: "claude-sonnet-4-5-20250929" // ✅ September 2025 release
+```
+
+### Klíčové Schopnosti
+
+#### 1. **Parallel Tool Calling** 🎯
+- Může volat **více tools současně** v jedné odpovědi
+- Žádné omezení na typy (custom + server tools mix)
+- Gemini/Vertex AI tohle neumí!
+
+```javascript
+// Příklad: Claude může v jedné odpovědi:
+tools: [
+  { type: "user", name: "generate_pdf" },      // Custom tool
+  { type: "user", name: "generate_image" },    // Custom tool
+  { type: "web_search_20250305", name: "web_search" } // Server tool
+]
+// ✅ Všechny 3 může zavolat paralelně!
+```
+
+#### 2. **Extended Context** 📚
+- **200K context window** (massive!)
+- **64K output tokens** (vs. starý 2K limit)
+- Ideální pro komplexní tool orchestraci
+
+#### 3. **Prompt Caching** 💰
+**Největší cost saver!**
+
+```javascript
+// System prompt caching
+system: [
+  {
+    type: "text",
+    text: agentSystemPrompt,
+    cache_control: { type: "ephemeral" } // ⚡ 90% savings!
+  }
+]
+
+// Tool definitions caching
+tools: [
+  {
+    type: "user",
+    name: "generate_pdf",
+    description: "...",
+    input_schema: { /* ... */ },
+    cache_control: { type: "ephemeral" } // ⚡ Cache this too!
+  }
+]
+```
+
+**Cost breakdown:**
+- Cache write: +25% nad base input ($3/M → $3.75/M) - jednorázově
+- Cache read: -90% od base input ($3/M → $0.30/M) - každý další call!
+- Cache lifetime: 5 minut (nebo 1 hodina pro >10K tokens)
+
+**Savings example:**
+- Bez cachingu: $0.060 per call
+- S cachingem: $0.041 per call
+- **Úspora: 32% na každém volání!**
+
+#### 4. **Context Management API** 📊
+- Auto-tracking token usage
+- Předchází "premature task abandonment"
+- Claude ví kdy má dost prostoru pro dokončení
+
+#### 5. **Extended Thinking (Beta)** 🤔
+```javascript
+headers: {
+  'anthropic-thinking': 'interleaved-thinking-2025-05-14'
+}
+// Internal reasoning před odpovědí
+// Lepší výsledky pro komplexní tool orchestraci
+```
+
+---
+
+## 💰 Cost Analysis
+
+### Current Pricing (Claude Sonnet 4.5)
+| Component | Input | Output | Note |
+|-----------|--------|---------|------|
+| Base cost | $3/1M | $15/1M | Standard |
+| Cache write | $3.75/1M | - | +25% (once) |
+| Cache read | $0.30/1M | - | -90% (repeated) |
+| Extended thinking | $6/1M | $30/1M | 2x cost |
+
+### Gemini Flash (Main Model)
+| Model | Cost | Usage |
+|-------|------|-------|
+| Flash | ~$0.50/900 queries | 90% času |
+| Flash Lite | $0.075/1M tokens | Intent detection |
+
+### Projected Monthly Cost (100 msg/day)
+
+**Bez Claude Agent:**
+- Gemini Flash only: ~$15-20/month ✅
+
+**S Claude Agent (10% aktivace):**
+```
+Gemini Flash: $15-20/month (90% queries)
+Intent Detector: ~$1/month (Flash Lite)
+Claude Agent: ~$70/month (10% aktivace s cachingem)
+──────────────────────────────────
+Total: ~$86-91/month
+```
+
+**User má $150 kredit:**
+- Vydrží: ~1.5-2 měsíce testování ✅
+- Pokud funguje: Cost optimization dál (menší aktivace rate)
+
+---
+
+## 🛠️ Implementation Plan
+
+### Phase 1: Create Claude Agent Backend
+**Soubor:** `/api/claude-agent.js` (nový)
+
+```javascript
+export default async function handler(req, res) {
+  const { messages, tools_needed } = req.body;
+
+  const claudeRequest = {
+    model: "claude-sonnet-4-5-20250929", // ✅ Latest
+    max_tokens: 16000, // ✅ Much higher
+    system: [
+      {
+        type: "text",
+        text: getAgentSystemPrompt(),
+        cache_control: { type: "ephemeral" } // ⚡ Cache!
+      }
+    ],
+    messages: messages,
+    tools: [
+      {
+        type: "user",
+        name: "generate_pdf",
+        description: "Generate PDF document from conversation",
+        input_schema: {
+          type: "object",
+          properties: {
+            conversationId: { type: "string" },
+            fileName: { type: "string" }
+          },
+          required: ["conversationId", "fileName"]
+        },
+        cache_control: { type: "ephemeral" } // ⚡ Cache tools!
+      },
+      {
+        type: "user",
+        name: "generate_image",
+        description: "Generate image using Imagen API",
+        input_schema: {
+          type: "object",
+          properties: {
+            prompt: { type: "string" },
+            aspectRatio: { type: "string", enum: ["1:1", "16:9", "9:16"] },
+            outputFormat: { type: "string", enum: ["jpeg", "png"] }
+          },
+          required: ["prompt"]
+        },
+        cache_control: { type: "ephemeral" }
+      }
+    ]
+  };
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-thinking': 'interleaved-thinking-2025-05-14' // Beta
+    },
+    body: JSON.stringify(claudeRequest)
+  });
+
+  // Handle tool_use responses
+  // Execute tools (call /api/generate-pdf, /api/imagen)
+  // Return results to Omnia
+}
+```
+
+### Phase 2: Create Intent Classifier
+**Soubor:** `/api/intent-classifier.js` (nový)
+
+```javascript
+export default async function handler(req, res) {
+  const { lastMessage } = req.body;
+
+  // Flash Lite model ($0.075/1M tokens)
+  const intentPrompt = `
+You are an intent classifier. Analyze if user wants:
+- "query" = just asking/chatting/search
+- "request" = wants tool execution (PDF, image generation)
+
+User message: "${lastMessage}"
+
+Respond with JSON: {"intent": "query" or "request", "tools_needed": ["pdf", "image"]}
+  `;
+
+  // Call Gemini Flash Lite API
+  const intent = await callFlashLite(intentPrompt);
+
+  return res.json(intent);
+}
+```
+
+### Phase 3: Integration do App.jsx
+**Logika:**
+```javascript
+async function handleUserMessage(message) {
+  // 1. Pošli Gemini Flash (main model)
+  const geminiResponse = await geminiService.sendMessage(message);
+
+  // 2. Intent detection
+  const intent = await fetch('/api/intent-classifier', {
+    method: 'POST',
+    body: JSON.stringify({ lastMessage: message })
+  });
+
+  // 3. Wake Claude only if needed
+  if (intent.intent === 'request') {
+    console.log('🧠 Waking Claude Agent...');
+    const claudeResult = await fetch('/api/claude-agent', {
+      method: 'POST',
+      body: JSON.stringify({
+        messages: conversationHistory,
+        tools_needed: intent.tools_needed
+      })
+    });
+
+    // 4. Execute tools that Claude called
+    for (const toolCall of claudeResult.tool_uses) {
+      if (toolCall.name === 'generate_pdf') {
+        await executePDF(toolCall.input);
+      }
+      if (toolCall.name === 'generate_image') {
+        await executeImagen(toolCall.input);
+      }
+    }
+  }
+
+  // 5. Return final response
+  return geminiResponse;
+}
+```
+
+### Phase 4: Agent System Prompt
+**Soubor:** `/src/prompts/claude-agent.js` (nový)
+
+```javascript
+export const getAgentSystemPrompt = () => {
+  return `You are Omnia's Tool Agent. Your job is to orchestrate tool execution.
+
+AVAILABLE TOOLS:
+1. generate_pdf - Create PDF from conversation
+2. generate_image - Generate images via Imagen API
+
+RULES:
+- Call tools in parallel when possible
+- Analyze user request carefully
+- Return structured tool_use responses
+- Don't generate conversational text (that's main model's job)
+
+You are TASK-FOCUSED, not personality-focused. Execute efficiently.`;
+};
+```
+
+---
+
+## 🔄 Migration Strategy
+
+### Co ZŮSTÁVÁ stejné:
+✅ Gemini Flash jako hlavní conversational model
+✅ Google Search grounding (zůstává u Gemini)
+✅ `/src/prompts/omnia.js` - Omnia personality prompt
+✅ `/api/gemini.js` - Main backend
+✅ Celý frontend (UI, chat components)
+
+### Co je NOVÉ:
+🆕 `/api/claude-agent.js` - Tool orchestration
+🆕 `/api/intent-classifier.js` - Intent detection
+🆕 `/src/prompts/claude-agent.js` - Agent prompt
+🆕 `/src/services/ai/claude-agent.service.js` - Frontend service
+
+### Co se RUŠÍ:
+❌ Plán na multi-agent Gemini systém
+❌ Oddělené agenty pro každý tool
+❌ Složitá routing logika mezi agenty
+
+---
+
+## 🧪 Testing Plan
+
+### Test 1: Basic Tool Call
+```
+User: "Vygeneruj mi PDF z této konverzace"
+
+Expected flow:
+1. Gemini Flash responds conversationally
+2. Intent classifier detects "request" → tools: ["pdf"]
+3. Claude Agent wakes up
+4. Claude calls generate_pdf tool
+5. PDF is generated
+6. Omnia shows success message
+```
+
+### Test 2: Parallel Tools
+```
+User: "Vytvoř mi obrázek lesa a ulož konverzaci do PDF"
+
+Expected flow:
+1. Intent classifier detects "request" → tools: ["image", "pdf"]
+2. Claude Agent calls BOTH tools in parallel
+3. Imagen generates image
+4. PDF is generated
+5. Both results shown to user
+```
+
+### Test 3: Cost Monitoring
+```
+- Track token usage per call
+- Verify cache hits/misses
+- Calculate actual cost vs projected
+- Optimize if needed
+```
+
+---
+
+## 📋 Checklist
+
+### Backend
+- [ ] Vytvořit `/api/claude-agent.js`
+- [ ] Vytvořit `/api/intent-classifier.js`
+- [ ] Update environment variables (CLAUDE_API_KEY)
+- [ ] Implementovat prompt caching
+- [ ] Implementovat parallel tool execution handler
+- [ ] Error handling a fallbacks
+
+### Frontend
+- [ ] Vytvořit `/src/services/ai/claude-agent.service.js`
+- [ ] Vytvořit `/src/prompts/claude-agent.js`
+- [ ] Integrace do App.jsx
+- [ ] UI pro Claude agent status (optional)
+- [ ] Loading states pro tool execution
+
+### Testing
+- [ ] Test basic tool call (PDF)
+- [ ] Test basic tool call (Image)
+- [ ] Test parallel tools (PDF + Image)
+- [ ] Test cost tracking
+- [ ] Test cache effectiveness
+- [ ] Test fallback when Claude unavailable
+
+### Optimization
+- [ ] Měřit token usage
+- [ ] Měřit cache hit rate
+- [ ] Optimalizovat agent prompt pro menší tokeny
+- [ ] Nastavit rate limiting (pokud potřeba)
+
+---
+
+## 🎯 Success Criteria
+
+**Phase 1 úspěšná když:**
+✅ Claude agent správně volá tools
+✅ Prompt caching funguje (90% savings viditelné)
+✅ Parallel tool execution funguje
+✅ Cost je pod $100/month pro 100 msg/day
+
+**Phase 2 optimization když:**
+✅ Intent classifier má >95% accuracy
+✅ Claude se aktivuje jen když nutné (false positives <5%)
+✅ Tool execution < 5s latency
+✅ User experience je seamless
+
+---
+
+## 💡 Future Ideas
+
+### Možné rozšíření později:
+- **Tool expansion:** Přidat další tools (web scraping, calculations)
+- **Multi-step reasoning:** Extended thinking mode for complex tasks
+- **Cost optimization:** Machine learning pro lepší intent detection
+- **Fallbacks:** Gemini function calling pokud Claude unavailable
+- **Monitoring:** Dashboard pro cost tracking a usage analytics
+
+---
+
+## 📝 Notes
+
+**User má další plán k diskuzi:** "mam mozna jeste jeden plan ale potrebuju poradit potom"
+
+**Aktuální kredity:**
+- $150 Anthropic API kredit
+- Vyprší za 6 měsíců
+- Stačí na 1.5-2 měsíce intensivního testování
+
+**Důležité:**
+- Google Search ZŮSTÁVÁ u Gemini (cost-effective)
+- Claude je JEN pro tool orchestration
+- Personality je stále v Gemini (Omnia prompt)
+- Claude má task-focused prompt (ne personality)
+
+---
+
+**Vytvořeno:** 2025-01-17
+**Status:** 📋 Ready for Implementation
+**Další krok:** Čekat na user's "jeste jeden plan" a pak začít implementaci

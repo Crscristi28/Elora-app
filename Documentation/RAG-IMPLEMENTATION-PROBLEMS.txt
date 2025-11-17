@@ -1,0 +1,815 @@
+RAG Implementation Problems & Solutions
+
+**Created:** November 3, 2025
+**Status:** INCOMPLETE - NEEDS COMPLETE REVERT AND RESTART
+**Critical Bug:** RAG returns user questions instead of bot answers
+
+---
+
+## 🚨 CRITICAL SHOWSTOPPER BUG
+
+### RAG Returns Questions Instead of Answers
+
+**Problem:**
+When user asks "Pamatuješ si práce a pauzy?" (Do you remember work and breaks?), the RAG system retrieves:
+
+```
+[1] (Relevance: 68% | 3. 11. 2025)
+"Tak bys měl mít něco jako relevant kontext"
+
+[2] (Relevance: 67% | 3. 11. 2025)
+"To je ono tag systém ti vrátí moje otázky místo toho co bys měl vědět z chatu"
+
+[5] (Relevance: 65% | 3. 11. 2025)
+"Hele takže si nepamatuješ co jsme diskutovali o právní dokumtace?"
+```
+
+**All results are USER QUESTIONS** ("Pamatuješ si...", "Co jsi mi psala...") instead of **BOT ANSWERS** ("Pauzy jsou důležité...", "Zlepšovací návrh...").
+
+**Root Cause:**
+```sql
+-- Current message_embeddings schema LACKS sender column:
+CREATE TABLE message_embeddings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  chat_id TEXT NOT NULL,
+  message_id UUID NOT NULL,
+  content TEXT NOT NULL,  -- ❌ NO sender COLUMN!
+  embedding VECTOR(768),
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+```
+
+Without `sender` column, we cannot filter to return only bot messages (answers).
+
+**Required Fix (for restart):**
+1. Add `sender TEXT` column to `message_embeddings`
+2. Modify `match_messages()` function to filter `WHERE sender = 'bot'`
+3. Only generate embeddings for BOT messages (not user messages)
+4. Backfill existing embeddings with sender info (or regenerate)
+
+---
+
+## 📋 ALL PROBLEMS FOUND (Chronological)
+
+### Problem 1: Wrong SDK (Gemini Studio API instead of Vertex AI)
+
+**Error:**
+```
+HTTP 500: "Gemini API key not configured"
+```
+
+**Root Cause:**
+Used `@google/generative-ai` SDK which requires `GEMINI_API_KEY`, but Omnia uses Vertex AI with Google Cloud credentials.
+
+**Files Affected:**
+- `/api/generate-embedding.js`
+- `/api/search-rag.js`
+
+**Fix Applied:**
+Complete rewrite to use Vertex AI REST API:
+```javascript
+// Initialize Google Auth
+const auth = new GoogleAuth({
+  credentials: {
+    private_key: credentials.private_key,
+    client_email: credentials.client_email
+  },
+  scopes: ['https://www.googleapis.com/auth/cloud-platform']
+});
+
+const accessToken = await auth.getAccessToken();
+
+// Build Vertex AI endpoint
+const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
+const location = 'us-central1';
+const model = 'text-embedding-005';
+const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:predict`;
+
+// Call Vertex AI Prediction API
+const response = await fetch(endpoint, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    instances: [{
+      content: text,
+      task_type: taskType // RETRIEVAL_DOCUMENT or RETRIEVAL_QUERY
+    }]
+  })
+});
+```
+
+---
+
+### Problem 2: Model Name Confusion
+
+**Error:**
+Changed model from `text-embedding-005` to `gemini-embedding-001` based on screenshot, breaking consistency.
+
+**Root Cause:**
+Misread console output - `gemini-embedding-001` is Studio API model name, not Vertex AI.
+
+**Fix Applied:**
+Reverted ALL instances back to `text-embedding-005`:
+- `/api/generate-embedding.js` - line 80
+- `/api/search-rag.js` - line 114
+
+**Lesson:**
+BOTH APIs (generate-embedding + search-rag) MUST use same model name.
+
+---
+
+### Problem 3: Race Condition (Foreign Key Violation 23503)
+
+**Error:**
+```
+code: "23503"
+details: "Key (message_id)=(xxx) is not present in table messages"
+message: "insert or update on table message_embeddings violates foreign key constraint"
+```
+
+**Root Cause:**
+```
+1. User sends message
+2. Message saved to IndexedDB
+3. RAG service calls generateAndStoreEmbedding() (fire-and-forget)
+4. RAG tries to call chatSync.uploadChat() → reads from IndexedDB
+5. BUT: Message not in IndexedDB yet! (asynchronous save)
+6. Embedding tries to insert with message_id that doesn't exist in Supabase
+```
+
+**Files Affected:**
+- `/src/services/rag/ragService.js`
+
+**Fix Applied:**
+Direct Supabase upload instead of reading from IndexedDB:
+
+```javascript
+// STEP 0: Upload chat + message DIRECTLY to Supabase (fix race condition)
+// Don't use chatSync.uploadChat() - it reads from IndexedDB which doesn't have message yet
+
+// First, ensure chat exists (upsert chat metadata)
+const { error: chatError } = await supabase
+  .from('chats')
+  .upsert({
+    id: chatId,
+    user_id: userId,
+    title: message.text.substring(0, 50) || 'New Chat',
+    created_at: new Date(message.timestamp).toISOString(),
+    updated_at: new Date(message.timestamp).toISOString()
+  }, {
+    onConflict: 'id',
+    ignoreDuplicates: false
+  });
+
+if (chatError) {
+  console.error('❌ [RAG] Chat upsert failed:', chatError);
+  throw chatError;
+}
+
+// Then, upload the message
+const { error: uploadError } = await supabase
+  .from('messages')
+  .upsert({
+    id: message.uuid,
+    chat_id: chatId,
+    user_id: userId,
+    device_id: DEVICE_ID,
+    content: message.text,
+    sender: message.sender,
+    timestamp: new Date(message.timestamp).toISOString(),
+    synced: true,
+    type: 'text',
+    // ... other fields
+  });
+
+if (uploadError) {
+  console.error('❌ [RAG] Message upload failed:', uploadError);
+  throw uploadError;
+}
+
+console.log('✅ [RAG] Message uploaded to Supabase, safe to generate embedding');
+
+// STEP 1: NOW safe to generate embedding
+// STEP 2: Store embedding (message_id now exists!)
+```
+
+---
+
+### Problem 4: Claude Cache Block Limit (Max 4 blocks)
+
+**Error:**
+```
+HTTP 400: "A maximum of 4 blocks with cache_control may be provided. Found 5."
+```
+
+**Root Cause:**
+Added `cache_control` to RAG context, totaling 5 cache blocks:
+1. System instructions
+2. Summary
+3. RAG context (NEW)
+4. Tool: search_web
+5. Tool: edit_image
+
+**Files Affected:**
+- `/api/claude.js`
+
+**Fix Applied:**
+Removed `cache_control` from RAG block (it's small ~500 chars and changes every query):
+
+```javascript
+// Add RAG context as third system block (no cache - small and dynamic)
+if (ragContext) {
+  console.log('🔍 [CLAUDE] Adding RAG context to system prompt:', ragContext.length, 'chars');
+  systemPrompt.push({
+    type: "text",
+    text: `🔍 IMPORTANT: RETRIEVED CONTEXT FROM YOUR EARLIER CONVERSATIONS
+
+You previously discussed these topics with the user. When answering the current question, actively reference and use this information:
+
+${ragContext}
+
+Instructions: If the current question relates to any of the above context, explicitly mention it in your answer. Don't say "I don't remember" if the information is provided above.`
+    // No cache_control - Claude API limit: MAX 4 cache blocks
+  });
+}
+```
+
+---
+
+### Problem 5: RAG Threshold Too High (0.7)
+
+**Error:**
+`ragContext` always null, backend log showed:
+```
+ragContextLength: 0,
+hasRAG: false,
+ragContextType: 'object'  // typeof null === 'object'
+```
+
+**Root Cause:**
+- SQL test with threshold 0.5 → 5 results
+- Frontend using threshold 0.7 → 0 results
+- Actual similarity scores were in 0.5-0.7 range
+
+**Files Affected:**
+- `/src/utils/contextBuilder.js` - line 182
+
+**Fix Applied:**
+Lowered threshold from 0.7 to 0.5:
+
+```javascript
+const ragResults = await ragService.searchRelevantContext(
+  currentMessage,
+  chatId,
+  5,    // top-5 results
+  0.5   // similarity threshold (lowered from 0.7 - broader context)
+);
+```
+
+**Similarity Score Guide:**
+- 0.9-1.0: Nearly identical (exact matches, paraphrases)
+- 0.8-0.9: Very similar (same topic, different wording)
+- 0.7-0.8: Similar (related concepts)
+- 0.5-0.7: Somewhat related (broader context)
+- <0.5: Less relevant (filtered out)
+
+---
+
+### Problem 6: Weak System Prompt
+
+**Error:**
+Claude received RAG context but responded with "I don't remember" or ignored the context.
+
+**Root Cause:**
+System prompt was too passive:
+```
+"# RELEVANT CONTEXT FROM HISTORY
+The following are relevant messages..."
+```
+
+**Files Affected:**
+- `/api/claude.js`
+
+**Fix Applied:**
+Stronger, directive prompt with emoji and explicit instructions:
+
+```javascript
+text: `🔍 IMPORTANT: RETRIEVED CONTEXT FROM YOUR EARLIER CONVERSATIONS
+
+You previously discussed these topics with the user. When answering the current question, actively reference and use this information:
+
+${ragContext}
+
+Instructions: If the current question relates to any of the above context, explicitly mention it in your answer. Don't say "I don't remember" if the information is provided above.`
+```
+
+---
+
+### Problem 7: Poor RAG Format (No Metadata)
+
+**Error:**
+RAG sent only bare text to Claude, no date or relevance scores.
+
+**Root Cause:**
+Original format was just:
+```javascript
+ragContext = ragResults.map(r => r.content).join('\n\n');
+```
+
+**Files Affected:**
+- `/src/utils/contextBuilder.js` - line 186-196
+
+**Fix Applied:**
+Rich format with date and relevance percentage:
+
+```javascript
+// Format RAG results for system prompt with metadata
+if (ragResults && ragResults.length > 0) {
+  ragContext = ragResults
+    .map((result, index) => {
+      const date = new Date(result.createdAt).toLocaleDateString('cs-CZ', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+      const similarity = (result.similarity * 100).toFixed(0);
+      return `[${index + 1}] (Relevance: ${similarity}% | ${date})\n"${result.content}"`;
+    })
+    .join('\n\n');
+}
+```
+
+**Example Output:**
+```
+[1] (Relevance: 92% | 2. 11. 2025)
+"Měli jsme diskuzi o GDPR compliance..."
+
+[2] (Relevance: 85% | 1. 11. 2025)
+"Implementovali jsme Terms Consent systém..."
+```
+
+---
+
+### Problem 8: Cross-Chat Search Not Working
+
+**Error:**
+RAG couldn't find context from other chats (e.g., discussions about legal docs from previous chat).
+
+**Root Cause:**
+Original `match_messages()` function required `filter_chat_id` parameter (no way to pass NULL).
+
+**Files Affected:**
+- `/supabase/add-rag-embeddings.sql` (original)
+- `/supabase/fix-rag-search-all-chats.sql` (fix)
+
+**Fix Applied:**
+Modified SQL function to make `filter_chat_id` optional (NULL = search all chats):
+
+```sql
+-- Drop existing function
+DROP FUNCTION IF EXISTS match_messages;
+
+-- Recreate with optional chat filter
+CREATE OR REPLACE FUNCTION match_messages(
+  query_embedding VECTOR(768),
+  match_threshold FLOAT,
+  match_count INT,
+  filter_chat_id TEXT DEFAULT NULL,  -- NULL = search all chats
+  filter_user_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  message_id UUID,
+  chat_id TEXT,  -- Include chat_id in response
+  content TEXT,
+  similarity FLOAT,
+  created_at TIMESTAMPTZ
+)
+LANGUAGE SQL STABLE
+SECURITY DEFINER
+AS $$
+  SELECT
+    message_embeddings.id,
+    message_embeddings.message_id,
+    message_embeddings.chat_id,
+    message_embeddings.content,
+    1 - (message_embeddings.embedding <=> query_embedding) AS similarity,
+    message_embeddings.created_at
+  FROM message_embeddings
+  WHERE
+    message_embeddings.user_id = COALESCE(filter_user_id, auth.uid())
+    AND (filter_chat_id IS NULL OR message_embeddings.chat_id = filter_chat_id)
+    AND 1 - (message_embeddings.embedding <=> query_embedding) > match_threshold
+  ORDER BY message_embeddings.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+```
+
+**Frontend Change:**
+```javascript
+// /api/search-rag.js - line 156
+const { data: matches, error: searchError } = await supabase.rpc('match_messages', {
+  query_embedding: queryEmbedding,
+  match_threshold: threshold,
+  match_count: topK,
+  filter_chat_id: null, // NULL = search across ALL user's chats
+  filter_user_id: userId
+});
+
+// /api/search-rag.js - line 181
+const results = (matches || []).map(match => ({
+  messageId: match.message_id,
+  chatId: match.chat_id, // Include chat ID for cross-chat context
+  content: match.content,
+  similarity: match.similarity,
+  createdAt: match.created_at
+}));
+```
+
+---
+
+## 📊 CURRENT SUPABASE SCHEMA
+
+### Table: `message_embeddings`
+
+```sql
+-- Created by: /supabase/add-rag-embeddings.sql
+CREATE TABLE message_embeddings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  embedding VECTOR(768),  -- Vertex AI text-embedding-005
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ❌ MISSING: sender TEXT (needed to filter bot vs user messages)
+```
+
+### Indexes
+
+```sql
+-- HNSW index for fast vector similarity search
+CREATE INDEX message_embeddings_embedding_idx
+  ON message_embeddings
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+
+-- Performance indexes
+CREATE INDEX message_embeddings_user_id_idx ON message_embeddings(user_id);
+CREATE INDEX message_embeddings_chat_id_idx ON message_embeddings(chat_id);
+CREATE INDEX message_embeddings_created_at_idx ON message_embeddings(created_at DESC);
+```
+
+### RLS Policies
+
+```sql
+-- Row Level Security
+ALTER TABLE message_embeddings ENABLE ROW LEVEL SECURITY;
+
+-- Users can only access their own embeddings
+CREATE POLICY "Users can view own embeddings"
+  ON message_embeddings FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own embeddings"
+  ON message_embeddings FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own embeddings"
+  ON message_embeddings FOR DELETE
+  USING (auth.uid() = user_id);
+```
+
+### Function: `match_messages()`
+
+```sql
+-- Current version (WITH cross-chat search support)
+CREATE OR REPLACE FUNCTION match_messages(
+  query_embedding VECTOR(768),
+  match_threshold FLOAT,
+  match_count INT,
+  filter_chat_id TEXT DEFAULT NULL,  -- NULL = search all chats
+  filter_user_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  message_id UUID,
+  chat_id TEXT,
+  content TEXT,
+  similarity FLOAT,
+  created_at TIMESTAMPTZ
+)
+LANGUAGE SQL STABLE
+SECURITY DEFINER
+AS $$
+  SELECT
+    message_embeddings.id,
+    message_embeddings.message_id,
+    message_embeddings.chat_id,
+    message_embeddings.content,
+    1 - (message_embeddings.embedding <=> query_embedding) AS similarity,
+    message_embeddings.created_at
+  FROM message_embeddings
+  WHERE
+    message_embeddings.user_id = COALESCE(filter_user_id, auth.uid())
+    AND (filter_chat_id IS NULL OR message_embeddings.chat_id = filter_chat_id)
+    AND 1 - (message_embeddings.embedding <=> query_embedding) > match_threshold
+  ORDER BY message_embeddings.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+```
+
+---
+
+## 🔧 SQL FIXES TO PRESERVE
+
+### Fix: Cross-Chat Search Support
+
+**File:** `/supabase/fix-rag-search-all-chats.sql`
+
+```sql
+-- Drop existing function
+DROP FUNCTION IF EXISTS match_messages;
+
+-- Recreate with optional chat filter
+CREATE OR REPLACE FUNCTION match_messages(
+  query_embedding VECTOR(768),
+  match_threshold FLOAT,
+  match_count INT,
+  filter_chat_id TEXT DEFAULT NULL,  -- NULL = search all chats
+  filter_user_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  message_id UUID,
+  chat_id TEXT,
+  content TEXT,
+  similarity FLOAT,
+  created_at TIMESTAMPTZ
+)
+LANGUAGE SQL STABLE
+SECURITY DEFINER
+AS $$
+  SELECT
+    message_embeddings.id,
+    message_embeddings.message_id,
+    message_embeddings.chat_id,
+    message_embeddings.content,
+    1 - (message_embeddings.embedding <=> query_embedding) AS similarity,
+    message_embeddings.created_at
+  FROM message_embeddings
+  WHERE
+    message_embeddings.user_id = COALESCE(filter_user_id, auth.uid())
+    AND (filter_chat_id IS NULL OR message_embeddings.chat_id = filter_chat_id)
+    AND 1 - (message_embeddings.embedding <=> query_embedding) > match_threshold
+  ORDER BY message_embeddings.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+```
+
+**Status:** ✅ ALREADY APPLIED to production
+
+---
+
+## 🚀 PROPOSED SOLUTION (For Restart)
+
+### Required Database Changes
+
+1. **Add `sender` column to `message_embeddings`:**
+
+```sql
+-- Add sender column
+ALTER TABLE message_embeddings
+ADD COLUMN sender TEXT NOT NULL DEFAULT 'user';
+
+-- Update existing rows (set to 'user' for safety, will regenerate bot embeddings)
+UPDATE message_embeddings SET sender = 'user';
+```
+
+2. **Update `match_messages()` function to filter by sender:**
+
+```sql
+CREATE OR REPLACE FUNCTION match_messages(
+  query_embedding VECTOR(768),
+  match_threshold FLOAT,
+  match_count INT,
+  filter_chat_id TEXT DEFAULT NULL,
+  filter_user_id UUID DEFAULT NULL,
+  filter_sender TEXT DEFAULT 'bot'  -- NEW: Default to bot messages only
+)
+RETURNS TABLE (
+  id UUID,
+  message_id UUID,
+  chat_id TEXT,
+  content TEXT,
+  sender TEXT,  -- NEW: Include sender in response
+  similarity FLOAT,
+  created_at TIMESTAMPTZ
+)
+LANGUAGE SQL STABLE
+SECURITY DEFINER
+AS $$
+  SELECT
+    message_embeddings.id,
+    message_embeddings.message_id,
+    message_embeddings.chat_id,
+    message_embeddings.content,
+    message_embeddings.sender,
+    1 - (message_embeddings.embedding <=> query_embedding) AS similarity,
+    message_embeddings.created_at
+  FROM message_embeddings
+  WHERE
+    message_embeddings.user_id = COALESCE(filter_user_id, auth.uid())
+    AND (filter_chat_id IS NULL OR message_embeddings.chat_id = filter_chat_id)
+    AND (filter_sender IS NULL OR message_embeddings.sender = filter_sender)
+    AND 1 - (message_embeddings.embedding <=> query_embedding) > match_threshold
+  ORDER BY message_embeddings.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+```
+
+3. **Add index on sender column:**
+
+```sql
+CREATE INDEX message_embeddings_sender_idx ON message_embeddings(sender);
+```
+
+### Required Code Changes
+
+1. **Only generate embeddings for BOT messages:**
+
+```javascript
+// /src/services/rag/ragService.js
+export const generateAndStoreEmbedding = async (message, chatId, userId) => {
+  // ONLY generate embeddings for BOT messages (answers, not questions)
+  if (message.sender !== 'bot') {
+    console.log('🔍 [RAG] Skipping embedding for user message');
+    return;
+  }
+
+  // ... rest of function
+};
+```
+
+2. **Update search API to filter by sender:**
+
+```javascript
+// /api/search-rag.js
+const { data: matches, error: searchError } = await supabase.rpc('match_messages', {
+  query_embedding: queryEmbedding,
+  match_threshold: threshold,
+  match_count: topK,
+  filter_chat_id: null,
+  filter_user_id: userId,
+  filter_sender: 'bot'  // NEW: Only return bot messages
+});
+```
+
+3. **Store sender in embedding:**
+
+```javascript
+// /api/generate-embedding.js
+const { error: insertError } = await supabase
+  .from('message_embeddings')
+  .insert({
+    user_id: userId,
+    chat_id: chatId,
+    message_id: messageId,
+    content: text,
+    sender: 'bot',  // NEW: Store sender
+    embedding
+  });
+```
+
+---
+
+## 📝 INCREMENTAL IMPLEMENTATION PLAN
+
+When restarting RAG implementation, follow this step-by-step approach:
+
+### Phase 1: Database Schema (TEST FIRST!)
+
+1. ✅ Add `sender` column to `message_embeddings`
+2. ✅ Update `match_messages()` function with `filter_sender` parameter
+3. ✅ Add index on `sender` column
+4. ✅ **TEST:** Run SQL queries manually to verify filtering works
+5. ✅ **COMMIT:** "feat: Add sender column to message_embeddings"
+
+### Phase 2: Embedding Generation (BOT ONLY)
+
+1. ✅ Modify `/src/services/rag/ragService.js` to check `sender === 'bot'`
+2. ✅ Update `/api/generate-embedding.js` to store `sender: 'bot'`
+3. ✅ **TEST:** Send message, verify embedding created only for bot response
+4. ✅ **COMMIT:** "feat: Generate embeddings only for bot messages"
+
+### Phase 3: Semantic Search (FILTER BY SENDER)
+
+1. ✅ Update `/api/search-rag.js` to pass `filter_sender: 'bot'`
+2. ✅ **TEST:** Send query, verify results are bot messages only
+3. ✅ **COMMIT:** "feat: Filter RAG search by sender=bot"
+
+### Phase 4: Context Builder Integration
+
+1. ✅ Verify `/src/utils/contextBuilder.js` threshold (0.5)
+2. ✅ Verify rich format (date + relevance)
+3. ✅ **TEST:** Check console logs for ragContext
+4. ✅ **COMMIT:** "feat: Integrate RAG into context builder"
+
+### Phase 5: Claude System Prompt
+
+1. ✅ Verify `/api/claude.js` system prompt strength
+2. ✅ Verify NO cache_control on RAG block
+3. ✅ **TEST:** Ask question, verify Claude uses RAG context
+4. ✅ **COMMIT:** "feat: Add RAG context to Claude system prompt"
+
+### Phase 6: Backfill Existing Data (OPTIONAL)
+
+1. ✅ Write script to regenerate embeddings for all bot messages
+2. ✅ Run backfill (may take time with 866 existing embeddings)
+3. ✅ **TEST:** Verify historical context works
+4. ✅ **COMMIT:** "chore: Backfill embeddings for bot messages"
+
+---
+
+## ⚠️ LESSONS LEARNED
+
+### What Went Wrong:
+
+1. **Too many changes at once** - Hard to debug when multiple systems modified simultaneously
+2. **Didn't check existing code** - Made assumptions about SDK/models instead of reading current implementation
+3. **No incremental testing** - Should have tested after each component, not at the end
+4. **Missing schema validation** - Should have checked table structure before implementing logic
+5. **Ignored context** - User repeatedly mentioned Vertex AI, but I kept trying Studio API
+
+### What to Do Differently:
+
+1. ✅ **Read existing code FIRST** before making changes
+2. ✅ **Test each component separately** before integration
+3. ✅ **Commit after each working step** (not after multiple changes)
+4. ✅ **Check database schema** before writing business logic
+5. ✅ **Listen to user corrections** - if they say "use Vertex AI", use Vertex AI
+6. ✅ **Document assumptions** - write down what you think is true, then verify
+7. ✅ **Ask clarifying questions** - better to ask than assume wrong
+
+### Key Takeaways:
+
+- **Incremental > Big Bang** - Small, testable changes beat large refactors
+- **Schema First** - Database structure determines what's possible
+- **Embeddings are expensive** - Only generate for what you actually need (bot messages)
+- **Similarity thresholds matter** - 0.7 vs 0.5 can mean 0 vs 5 results
+- **System prompts need to be strong** - Passive suggestions don't work, use directives
+
+---
+
+## 📊 CURRENT STATUS
+
+**Supabase:**
+- ✅ `message_embeddings` table created (866 rows)
+- ✅ HNSW index created (vector search enabled)
+- ✅ RLS policies configured
+- ✅ `match_messages()` function supports cross-chat search
+- ❌ Missing `sender` column (CRITICAL)
+
+**Code:**
+- ✅ Vertex AI integration working
+- ✅ Model consistency (text-embedding-005)
+- ✅ Race condition fixed (direct Supabase upload)
+- ✅ Claude cache limit respected (4 blocks max)
+- ✅ Threshold tuned (0.5)
+- ✅ System prompt strengthened
+- ✅ Rich format with metadata
+- ❌ RAG returns questions not answers (UNFIXED)
+
+**Testing:**
+- ✅ Embeddings generate successfully
+- ✅ Search returns results (866 embeddings indexed)
+- ✅ Claude receives RAG context
+- ❌ Claude sees user questions instead of bot answers
+
+---
+
+## 🎯 NEXT STEPS (After Revert)
+
+1. **Revert all code changes** (git reset to before RAG implementation)
+2. **Keep Supabase schema** (message_embeddings table + function)
+3. **Apply sender column migration** (SQL above)
+4. **Implement incrementally** (one phase at a time with testing)
+5. **Commit after each working step** (not in bulk)
+6. **Verify RAG returns BOT answers** before moving to next phase
+
+---
+
+**Total Problems Found:** 8
+**Critical Bugs:** 1 (sender column missing)
+**SQL Fixes Applied:** 1 (cross-chat search)
+**Status:** Ready for complete restart
+
+

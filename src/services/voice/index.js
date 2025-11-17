@@ -1,0 +1,1 @@
+export { default as elevenLabsService } from './elevenlabs.service.js';

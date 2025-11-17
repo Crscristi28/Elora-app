@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zasady ochrany soukromi pro Omnia One AI</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <span class="lang-option active">Čeština</span><a class="lang-option" href="../en/privacy-policy.html">English</a><a class="lang-option" href="../ro/privacy-policy.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Zasady ochrany soukromi pro Omnia One AI</h1>
+<p>Datum ucinnosti: 2. listopadu 2025</p>
+<p>Tento dokument vysvetluje, jake osobni udaje aplikace Omnia One AI zpracovava, za jakym ucelem a jak jsou chraneny. Provozovatelem je Cristian Bucioaca, kontakt: <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>.</p>
+<h2>1. Jakou pravni roli Provozovatel zastava</h2>
+<ul>
+<li>Provozovatel vystupuje jako spravce osobnich udaju, jez uzivatele zadali nebo vznikly pri pouzivani aplikace.</li>
+<li>Tretistranni platformy (Supabase, Google Cloud, OpenAI, Anthropic, ElevenLabs, Stripe) jsou zpracovatele nebo samostatni spravci podle povahy sluzby.</li>
+<li>V ramci integraci jsou uzivatelska data predavana pouze v rozsahu nezbytnem k poskytnuti sluzby.</li>
+</ul>
+<h2>2. Kategorie zpracovavanych udaju</h2>
+<ol>
+<li><strong>Identifikacni a prihlasovaci udaje</strong>: e-mail, zasifrovane heslo, interni ID uzivatele.</li>
+<li><strong>Profilova data</strong>: dobrovolne zadane jmeno a prezdivka, preferovana lokalizace.</li>
+<li><strong>Obsah chatu a prilohy</strong>: textove zpravy, systemova metadata, soubory nahrane uzivatelem (PDF, obrazky, dokumenty), AI generovane vystupy.</li>
+<li><strong>Technicka metadata</strong>: ID zarizeni, casove znacky, verze prohlizece, logy o selhani.</li>
+<li><strong>Provozni metriky</strong>: pocty zprav, spotreba tokenu, aktivita predplatneho (pokud je zapnuto).</li>
+<li><strong>Platebni udaje</strong>: zpracovava Stripe; aplikace uchovava pouze referencni identifikatory (customer_id, subscription_id).</li>
+<li><strong>Hlasova data</strong>: kratkodobe audio streamy pro prevod hlasu (Google STT, ElevenLabs TTS), ktere se po prevodu neukladaji.</li>
+</ol>
+<h2>3. Ucely a pravni zaklad</h2>
+<table>
+<thead>
+<tr>
+<th>Ucel zpracovani</th>
+<th>Kategorie udaju</th>
+<th>Pravni zaklad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Poskytnuti zakladnich funkci (prihlaseni, chat, synchronizace)</td>
+<td>identifikacni, profilova, obsah chatu, technicka</td>
+<td>plneni smlouvy (cl. 6 odst. 1 b) GDPR)</td>
+</tr>
+<tr>
+<td>Zpracovani souboru, generovani odpovedi AI, hlasove sluzby</td>
+<td>obsah chatu, prilohy, hlasova data</td>
+<td>plneni smlouvy</td>
+</tr>
+<tr>
+<td>Udrzba bezpecnosti (logy, detekce zneuziti, access tokeny)</td>
+<td>technicka metadata</td>
+<td>opravneny zajem (bezpecnost)</td>
+</tr>
+<tr>
+<td>Fakturace a evidence plateb</td>
+<td>identifikacni udaje, provozni metriky, platebni identifikatory</td>
+<td>plneni smlouvy / pravni povinnost</td>
+</tr>
+<tr>
+<td>Zlepseni produktu (anonymizovana analyza)</td>
+<td>agregovana provozni data</td>
+<td>opravneny zajem</td>
+</tr>
+</tbody>
+</table>
+<h2>4. Komu se data predavaji</h2>
+<ul>
+<li><strong>Supabase</strong> (EU datacentra): autentizace, databaze (profiles, chats, messages), Storage (attachments, generated-images, generated-pdfs-temp), realtime signalizace.</li>
+<li><strong>Google Cloud</strong> (EU a US regiony podle konfigurace): Vertex AI Gemini, Document AI, Text-to-Speech, Speech-to-Text, Cloud Storage pro docasne zpracovani. Credentiale jsou ukladan y ve formatu JSON v promennych prostredi na strane serveru.</li>
+<li><strong>Anthropic</strong>: API Claude pro generativni odpovedi a web search. Predavany je obsah aktualni konverzace a pripadne prilohy ve formatech podporovanych API.</li>
+<li><strong>OpenAI</strong>: GPT-4o pro rozsirene generativni funkce. Odesilane jsou systemove instrukce a cast historie konverzace.</li>
+<li><strong>ElevenLabs</strong>: Text-to-Speech streamy pro generovani hlasove odezvy. Predava se pouze text aktualni odpovedi.</li>
+<li><strong>Stripe</strong>: sprava predplatneho; do aplikace se vraci pouze tokenizovane identifikatory.</li>
+<li><strong>Google Search / externi zdroje</strong>: pri zapnute vyhledavaci funkci se dotaz anonymne odesila do integrace pro web search.</li>
+</ul>
+<p>Data nejsou prodavana tretim stranam ani sdilena pro marketing tretich stran.</p>
+<h2>5. Uloziste a doba uchovani</h2>
+<ul>
+<li><strong>Supabase</strong>: data jsou ulozena do doby, nez Uzivatel smaze chat nebo cely ucet. Pri smazani uctu je uzivatel upozornen na dusledky, musi napsat <code>DELETE</code> a potvrdit akci v aplikaci; neni odesilan zadny e-mail. Nasledne backend <code>delete-account.js</code> vola <code>supabase.auth.admin.deleteUser</code> a aktivuje kaskadni odstraneni profilu, chatu, zprav i priloh.</li>
+<li><strong>IndexedDB v prohlizeci</strong>: lokalni databaze <code>OmniaChatDB</code> uchovava chaty pro offline pouziti. Uzivatel muze data vymazat v nastaveni nebo pri odhlaseni.</li>
+<li><strong>Docasne uloziste</strong>: nahrane soubory pri zpracovani dokumentu mohou byt docasne drzeny v Google Cloud Storage, po dokonceni se maze docasny soubor i metadata.</li>
+<li><strong>Logy serveru</strong>: kratkodobe (max 30 dni) pro reseni incidentu, pote se anonymizuji nebo smazeji.</li>
+<li><strong>Platebni doklady</strong>: uchovava Stripe v souladu s pravnimi predpisy.</li>
+</ul>
+<h2>6. Bezpecnostni opatreni</h2>
+<ul>
+<li>Vsechny nove radky v Supabase maji aktivni Row Level Security a kontrolu <code>auth.uid()</code>.</li>
+<li>Storage objekty v Supabase vyzaduji vlastnictvi <code>owner = auth.uid()</code> pro mazani.</li>
+<li>Tokeny Supabase jsou overovany na backendu pomoci service role klice.</li>
+<li>Hesla jsou u Supabase hashovana podle bezpecnostnich standardu.</li>
+<li>Komunikace s API je sifrovana (HTTPS).</li>
+<li>Pri smazani chatu se nejprve odstrani soubory ze Storage (<code>deleteStorageFiles</code>), pote konverzace a pripadne zaznamy v sync tabulkach.</li>
+<li>Pristup k ridicim credentialum (Google, OpenAI, Anthropic, ElevenLabs) je omezen na serverovou cast.</li>
+</ul>
+<h2>7. Prava uzivatelu</h2>
+<p>Uzivatel ma v souladu s GDPR zejmena tato prava:</p>
+<ol>
+<li>Pravo na pristup k udajum (v nastaveni uctu lze pozadat o export).</li>
+<li>Pravo na opravu profilu (profil lze editovat primo v aplikaci).</li>
+<li>Pravo na vymaz (smazani chatu, priloh nebo cely uctovy profil).</li>
+<li>Pravo na omezeni zpracovani (lze vypnout synchronizaci nebo zrusit predplatne).</li>
+<li>Pravo vzneseni namitek proti zpracovani zalozenemu na opravnenem zajmu.</li>
+<li>Pravo na prenositelnost (export konverzaci lze zaslat na zaklade zadosti).</li>
+<li>Pravo podat stiznost u dozoroveho organu (Urad pro ochranu osobnich udaju, <a href="http://www.uoou.cz">www.uoou.cz</a>).</li>
+</ol>
+<p>Zadosti lze smerovat na <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>. Provozovatel odpovi nejpozdeji do 30 dni.</p>
+<h2>8. Automatizovane rozhodovani a profilace</h2>
+<p>Aplikace generuje odpovedi s vyuzitim modelu umele inteligence na zaklade instrukci a historie konverzace. Neprovadi se profilace vedouci k pravnim ucinkum nebo obdobne vyznamnemu dopadu bez lidskeho vstupu. Predplatna a fakturace jsou ridena jasnymi pravidly.</p>
+<h2>9. Zmeny zasad</h2>
+<p>Tento dokument muze byt prubezne aktualizovan, pokud dojde k technickym nebo legislativnim zmenam. O vyznamnych zmenach bude uzivatel informovan e-mailem nebo oznamenim ve Sluzbe nejmene 14 dni pred ucinnosti. Archiv predchozich verzi bude k dispozici na vyzadani.</p>
+<hr>
+<p>Tento text je pripraven na zaklade skutecne implementace projektu Omnia One AI (zdrojem jsou soubory v adresarich <code>api/</code>, <code>src/services/</code>, <code>supabase/</code> a souvisejici konfigurace).</p>
+  </main>
+</body>
+</html>

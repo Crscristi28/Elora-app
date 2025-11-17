@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🎨 Image Loading Skeleton Animation */
+@keyframes shimmer-skeleton {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* HTML5 Semantic Elements Reset - Fix irregular margins causing scroll jumping */
+main, article, section, div, aside, header, footer, nav, hgroup, search {
+  margin: 0;
+  padding: 0;
+}
+
+/* Typography Reset - Only reset layout elements, preserve content spacing */
+figure, blockquote, hr {
+  margin: 0;
+  padding: 0;
+}
+
+/* Remove list styles from UI elements, but preserve markdown content */
+ul, ol {
+  list-style: none;
+}
+
+/* Restore list styles for markdown content */
+.markdown-container ul, .markdown-container ol {
+  list-style: initial;
+}
+
+.markdown-container ul {
+  list-style-type: disc; /* Level 1: plný kruh ● */
+}
+
+.markdown-container ul ul {
+  list-style-type: circle; /* Level 2: prázdný kruh ○ */
+}
+
+.markdown-container ul ul ul {
+  list-style-type: square; /* Level 3: čtvereček ■ */
+}
+
+.markdown-container ol {
+  list-style-type: decimal;
+}
+
+/* Basic markdown content spacing - fallback for elements without w-md-editor-text */
+.markdown-container > h1, .markdown-container > h2, .markdown-container > h3, 
+.markdown-container > h4, .markdown-container > h5, .markdown-container > h6 {
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+}
+
+.markdown-container > h1:first-child, .markdown-container > h2:first-child, 
+.markdown-container > h3:first-child, .markdown-container > h4:first-child, 
+.markdown-container > h5:first-child, .markdown-container > h6:first-child {
+  margin-top: 0;
+}
+
+/* Global box-sizing for consistent layout calculations */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+:root {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Light Mode Theme Colors (Cream) */
+[data-theme="light"] {
+  --app-bg-gradient: #FDFBF7;
+  --app-bg-solid: #FDFBF7;
+}
+
+/* Omnia Mode Theme Colors (Blue Gradient) */
+[data-theme="omnia"] {
+  --app-bg-gradient: linear-gradient(135deg, #000428, #004e92, #009ffd);
+  --app-bg-solid: #000428;
+}
+
+/* Dark Mode Theme Colors (explicit) */
+[data-theme="dark"] {
+  --app-bg-gradient: #000000;
+  --app-bg-solid: #000000;
+}
+
+/* PWA & Mobile Optimizations */
+html {
+  height: 100%;
+  width: 100%;
+  overflow: auto; /* ✅ Allow scroll - iOS behavior like ChatGPT/Claude/Grok */
+  -webkit-text-size-adjust: 100%;
+  /* No safe-area padding for true fullscreen */
+  background: var(--app-bg-gradient);
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: auto; /* ✅ Allow scroll - iOS behavior like ChatGPT/Claude/Grok */
+  overscroll-behavior: none;
+  line-height: 1.5;
+  /* 🍎 iOS 26 IAV Fix - explicit background for accessory bar */
+  background-color: var(--app-bg-solid);
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  /* 🔒 REMOVED position: relative - it makes #root a containing block,
+     breaking position: fixed on children (top bar, InputBar)
+     Fixed children MUST be relative to viewport, not #root */
+  overflow: auto; /* ✅ Allow scroll - iOS behavior like ChatGPT/Claude/Grok */
+}
+
+/* Input optimizations - prevent zoom on iOS */
+input[type="text"],
+input[type="email"], 
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="password"],
+textarea {
+  font-size: 16px !important;
+}
+
+/* UI Controls - prevent unwanted interactions */
+button, input, nav, header, .ui-element, .input-bar {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Chat content - allow text selection */
+.message, .markdown-container, .chat-content {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* Scrollable areas - vertical scroll only */
+.scrollable {
+  touch-action: pan-y;
+  overscroll-behavior: none;
+}
+
+/* Custom styles will go here */

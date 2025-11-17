@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omnia One AI Data Processing Overview</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/prehled-zpracovani-dat.html">Čeština</a><span class="lang-option active">English</span><a class="lang-option" href="../ro/data-processing-overview.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Omnia One AI Data Processing Overview</h1>
+<p>This record documents the processing activities carried out by Omnia One AI in line with GDPR Article 30. It is based on the current implementation (Supabase schema, API routes, frontend services).</p>
+<h2>1. Dataset: User Accounts</h2>
+<ul>
+<li><strong>Description</strong>: Registration through Supabase Auth, corresponding entries in <code>auth.users</code> and <code>profiles</code>.</li>
+<li><strong>Data categories</strong>: e-mail, password hash, user ID, role, name, nickname, preferred locale, timestamps.</li>
+<li><strong>Data subjects</strong>: registered users.</li>
+<li><strong>Purpose</strong>: account creation and maintenance, AI personalisation.</li>
+<li><strong>Legal basis</strong>: performance of contract.</li>
+<li><strong>Recipients</strong>: Supabase (EU).</li>
+<li><strong>Retention</strong>: for the life of the account; deleted via <code>delete-account.js</code>.</li>
+<li><strong>Security</strong>: RLS, encrypted transport, hashed passwords, service role limited to backend.</li>
+</ul>
+<h2>2. Dataset: Chat Messages and Context</h2>
+<ul>
+<li><strong>Description</strong>: Tables <code>chats</code>, <code>messages</code>, local IndexedDB <code>OmniaChatDB</code>.</li>
+<li><strong>Data categories</strong>: message text, metadata (timestamps, sender, device_id, sources), attachments (files, images, pdf), AI responses.</li>
+<li><strong>Data subjects</strong>: registered users interacting with the AI assistant.</li>
+<li><strong>Purpose</strong>: provide conversational AI, preserve history, ensure continuity.</li>
+<li><strong>Legal basis</strong>: performance of contract.</li>
+<li><strong>Recipients</strong>: Supabase, AI providers (Google Vertex AI, Anthropic, OpenAI) for the relevant conversation snippets.</li>
+<li><strong>Retention</strong>: until the chat or account is deleted; locally removable at any time.</li>
+<li><strong>Deletion</strong>: <code>deleteChat</code> removes Storage objects first, then rows in IndexedDB and Supabase.</li>
+<li><strong>Security</strong>: RLS <code>auth.uid()</code>, Storage ownership enforcement, reliance on browser storage for offline data.</li>
+</ul>
+<h2>3. Dataset: Uploaded Files and Generated Assets</h2>
+<ul>
+<li><strong>Description</strong>: Supabase Storage buckets (attachments, generated-images, generated-pdfs-temp), Google Cloud Storage during document processing, local cache.</li>
+<li><strong>Data categories</strong>: file contents uploaded by the user, AI generated images, PDFs, metadata (name, size, path, publicUrl).</li>
+<li><strong>Data subjects</strong>: registered users.</li>
+<li><strong>Purpose</strong>: document analysis, asset generation, download by the User.</li>
+<li><strong>Legal basis</strong>: performance of contract; in exceptional cases user consent if sensitive data are voluntarily provided.</li>
+<li><strong>Recipients</strong>: Supabase Storage (EU), Google Document AI and Cloud Storage, ElevenLabs (for TTS output).</li>
+<li><strong>Retention</strong>: until the specific file or account is deleted; temporary stores are cleared after completion.</li>
+<li><strong>Security</strong>: Storage RLS (owner-only delete), HTTPS, MIME validation, removal of Storage data before chat deletion.</li>
+</ul>
+<h2>4. Dataset: Voice Communication</h2>
+<ul>
+<li><strong>Description</strong>: Audio sent to <code>api/google-stt.js</code> and <code>api/elevenlabs-stt.js</code>, text sent to <code>api/elevenlabs-tts.js</code> and <code>api/google-tts.js</code>.</li>
+<li><strong>Data categories</strong>: short audio recordings, transcripts, generated audio.</li>
+<li><strong>Data subjects</strong>: registered users (and anyone captured in recordings).</li>
+<li><strong>Purpose</strong>: speech-to-text and text-to-speech functionality.</li>
+<li><strong>Legal basis</strong>: performance of contract.</li>
+<li><strong>Recipients</strong>: Google Speech-to-Text, ElevenLabs.</li>
+<li><strong>Retention</strong>: audio is not stored after transcription; generated MP3 streams are not archived.</li>
+<li><strong>Security</strong>: file size limits, input sanitisation, HTTPS.</li>
+</ul>
+<h2>5. Dataset: Operational and Usage Metrics</h2>
+<ul>
+<li><strong>Description</strong>: Table <code>usage_metrics</code>, local logs, aggregated analytics.</li>
+<li><strong>Data categories</strong>: user_id, metric type (messages, tokens), value, date.</li>
+<li><strong>Data subjects</strong>: registered users.</li>
+<li><strong>Purpose</strong>: monitoring, billing, abuse prevention.</li>
+<li><strong>Legal basis</strong>: legitimate interest; performance of contract for billing.</li>
+<li><strong>Recipients</strong>: Supabase (EU), Stripe (for billing references).</li>
+<li><strong>Retention</strong>: up to 24 months or until the account is deleted.</li>
+<li><strong>Security</strong>: RLS, access only via authenticated sessions.</li>
+</ul>
+<h2>6. Dataset: Billing</h2>
+<ul>
+<li><strong>Description</strong>: Stripe integration, <code>subscriptions</code> table.</li>
+<li><strong>Data categories</strong>: user_id, plan_id, status, stripe_customer_id, stripe_subscription_id, billing period timestamps.</li>
+<li><strong>Data subjects</strong>: users with active subscriptions.</li>
+<li><strong>Purpose</strong>: payment records, invoicing, customer support.</li>
+<li><strong>Legal basis</strong>: performance of contract; legal obligation (bookkeeping).</li>
+<li><strong>Recipients</strong>: Stripe (EU/US).</li>
+<li><strong>Retention</strong>: according to Stripe policies and legal requirements (minimum 5 years).</li>
+<li><strong>Security</strong>: tokenised references; card data are never stored in the application. Deletion handled through Stripe dashboards or API.</li>
+</ul>
+<h2>7. Dataset: Support and Communication</h2>
+<ul>
+<li><strong>Description</strong>: Support e-mails, Supabase notification templates.</li>
+<li><strong>Data categories</strong>: e-mail, message content, issue details.</li>
+<li><strong>Data subjects</strong>: users contacting support.</li>
+<li><strong>Purpose</strong>: responding to enquiries, resolving incidents.</li>
+<li><strong>Legal basis</strong>: legitimate interest.</li>
+<li><strong>Recipients</strong>: Omnia's mail provider (<a href="http://omniaoneai.com">omniaoneai.com</a>).</li>
+<li><strong>Retention</strong>: during ticket resolution + 12 months for audit.</li>
+<li><strong>Security</strong>: access limited to the Provider; TLS-secured mail transmission.</li>
+</ul>
+<h2>8. Handling Data Subject Requests</h2>
+<ul>
+<li>Requests are accepted at <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>.</li>
+<li>Identity verification uses Supabase account ownership; additional details may be requested if necessary.</li>
+<li>Exports include profile data, chat lists, message content, metrics and file metadata.</li>
+<li>Deletion triggers <code>delete-account.js</code> plus manual verification that Storage buckets are clear.</li>
+<li>Responses are provided within 30 days; complex cases may extend the deadline by an additional 30 days with notification.</li>
+</ul>
+<hr>
+<p>Updated 2 November 2025. Future implementation changes will be reflected in subsequent versions of this overview.</p>
+  </main>
+</body>
+</html>

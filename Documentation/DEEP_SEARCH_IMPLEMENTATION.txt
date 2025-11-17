@@ -1,0 +1,630 @@
+# 🔍 DEEP SEARCH IMPLEMENTATION PLAN
+**Gemini 2.5 Pro Expert Mode - Temporary Switch Architecture**
+
+## 📋 Koncept
+
+Deep Search = **Temporary switch** na Gemini 2.5 Pro pro jeden dotaz
+
+### Workflow:
+```
+User má vybraný: Claude Haiku (Core)
+↓
+User zapne Deep Search toggle → příští zpráva
+↓
+TEMPORARY SWITCH: Gemini 2.5 Pro (24K thinking, 30 sources)
+↓
+Deep Search odpověď dokončena
+↓
+AUTO-REVERT: Zpět na Claude Haiku
+↓
+Context preserved díky hierarchical memory! ✅
+```
+
+### Proč je to brilliantní:
+**User nikdy nemusí manuálně přepínat modely** - Deep Search je "emergency expert consultation"
+
+**Scenario:**
+```
+[User používá Claude Haiku pro coding]
+
+User: "How do I implement OAuth2?"
+Bot (Haiku): [rychlá odpověď]
+
+User: [zapne Deep Search] "What are all OAuth2 security vulnerabilities in 2025?"
+Bot (Pro Deep Search): [hluboká analýza, 30 sources, 24K thinking]
+
+User: [Deep Search auto-vypnuto] "Apply that to my code"
+Bot (Haiku): [má context od Deep Search! Ví o vulnerabilities!]
+```
+
+---
+
+## 🎯 Behavior
+
+### 1. Toggle ON
+- Save current model to `previousModel` state
+- Switch to `gemini-2.5-pro`
+- Next message uses Pro with Deep Search config
+
+### 2. Streaming
+- Shimmer text: "Deep Search analyzing..."
+- Model is Gemini 2.5 Pro (24K thinking budget)
+- Thinking always ON (ignoruje Deep Reasoning toggle)
+- Max 30 sources
+
+### 3. Completion
+- Auto-revert to `previousModel`
+- Auto-disable Deep Search toggle
+- Clear `previousModel` state
+- Normal flow continues
+
+### 4. Error Handling (Full Rollback)
+```javascript
+catch (error) {
+  // 1. Restore model
+  setModel(previousModel);
+
+  // 2. Disable Deep Search toggle
+  setDeepSearchEnabled(false);
+
+  // 3. Restore user's message to input
+  setInput(userMessageText);
+
+  // 4. Remove failed bot message
+  setMessages(prev => prev.slice(0, -2));
+
+  // 5. Notify user
+  showNotification('Deep Search failed, please try again', 'error');
+}
+```
+
+### 5. Zero Multi-Use Protection
+- Input bar disabled během streaming
+- User nemůže poslat další zprávu dokud AI neodpověděla
+- Eliminuje edge cases s multiple Deep Search calls
+
+---
+
+## ⚙️ Technical Details
+
+| Parameter | Value |
+|-----------|-------|
+| **Model** | Gemini 2.5 Pro (`gemini-2.5-pro-002`) |
+| **Thinking Budget** | 24K tokens (always ON) |
+| **Max Sources** | 30 sources |
+| **Auto-Disable** | After streaming completion |
+| **Deep Reasoning** | Ignorováno (Deep Search = always thinking) |
+| **Cost** | Expensive! (~10x Flash) |
+| **Usage Limit** | None (yet) - ChatGPT má 3-5x/měsíc i pro paid |
+
+---
+
+## 📝 Implementace (5 souborů)
+
+### 1. **App.jsx** (State + Logic)
+
+#### A) Přidat state (~řádek 290)
+```javascript
+const [isImageMode, setIsImageMode] = useState(false);
+const [deepSearchEnabled, setDeepSearchEnabled] = useState(false); // ✅ NOVÝ
+const [deepReasoningEnabled, setDeepReasoningEnabled] = useState(...);
+const [previousModel, setPreviousModel] = useState(null); // ✅ Model backup
+```
+
+#### B) handleSend logic - PŘED odesláním
+```javascript
+// Deep Search: Save current model and switch to Pro
+if (deepSearchEnabled) {
+  setPreviousModel(model);
+  setModel('gemini-2.5-pro');
+  console.log(`🔍 [DEEP-SEARCH] Switching from ${model} to Gemini 2.5 Pro`);
+}
+```
+
+#### C) After streaming completion (3 lokace)
+```javascript
+if (extra.completed) {
+  setLoading(false);
+  setStreaming(false);
+
+  // ✅ Deep Search: Restore model if was used
+  if (previousModel) {
+    console.log(`🔍 [DEEP-SEARCH] Restoring to: ${previousModel}`);
+    setModel(previousModel);
+    setPreviousModel(null);
+    setDeepSearchEnabled(false);
+  }
+
+  // ... rest of completion logic
+}
+```
+
+**Lokace pro aplikaci:**
+1. Image Mode handler (~řádek 1550)
+2. Normal chat handler (~řádek 2330)
+3. Voice chat handler (~řádek 3850)
+
+#### D) Error rollback (catch blocks)
+```javascript
+catch (error) {
+  console.error('Error:', error);
+
+  // ✅ Deep Search: Rollback if was active
+  if (previousModel) {
+    setModel(previousModel);
+    setPreviousModel(null);
+    setDeepSearchEnabled(false);
+    console.log('🔍 [DEEP-SEARCH] Rolled back to:', previousModel);
+  }
+
+  // ... existing rollback logic (restore input, remove messages, notify)
+}
+```
+
+#### E) InputBar props (~řádek 4238)
+```javascript
+<InputBar
+  input={input}
+  setInput={setInput}
+  onSend={(text) => handleSend(text)}
+  onImageGenerate={() => setIsImageMode(prev => !prev)}
+  onToggleDeepSearch={(enabled) => {
+    setDeepSearchEnabled(enabled);
+    console.log(`🔍 [DEEP-SEARCH] Toggle: ${enabled ? 'ON' : 'OFF'}`);
+  }} // ✅ NOVÝ
+  onToggleDeepReasoning={(enabled) => setDeepReasoningEnabled(enabled)}
+  deepSearchEnabled={deepSearchEnabled} // ✅ Pass state down
+  // ... rest of props
+/>
+```
+
+---
+
+### 2. **InputBar.jsx** (Props + State)
+
+#### A) Props (~řádek 17)
+```javascript
+const InputBar = ({
+  input,
+  setInput,
+  onSend,
+  onSendWithDocuments,
+  onSTT,
+  onVoiceScreen,
+  onImageGenerate,
+  onToggleDeepSearch, // ✅ NOVÝ
+  onToggleDeepReasoning,
+  onDocumentUpload,
+  isLoading,
+  isRecording,
+  isAudioPlaying,
+  isImageMode = false,
+  deepSearchEnabled = false, // ✅ NOVÝ
+  uiLanguage = 'cs',
+  // ... rest
+})
+```
+
+#### B) Local state (~řádek 55)
+```javascript
+const [deepReasoning, setDeepReasoning] = useState(() => {
+  // Load from localStorage, default: false (OFF)
+  const saved = localStorage.getItem('deepReasoning');
+  return saved === 'true';
+});
+
+const [deepSearch, setDeepSearch] = useState(false); // ✅ NOVÝ (NO localStorage!)
+```
+
+**Note:** Deep Search **NENÍ v localStorage** - vždy začíná OFF!
+
+#### C) Sync with parent state
+```javascript
+// Sync Deep Search state from parent
+useEffect(() => {
+  setDeepSearch(deepSearchEnabled);
+}, [deepSearchEnabled]);
+```
+
+#### D) Toggle handlers
+```javascript
+// Deep Reasoning toggle (existing)
+const handleDeepReasoningToggle = () => {
+  const newValue = !deepReasoning;
+  setDeepReasoning(newValue);
+  localStorage.setItem('deepReasoning', newValue.toString());
+  onToggleDeepReasoning && onToggleDeepReasoning(newValue);
+};
+
+// Deep Search toggle (NEW)
+const handleDeepSearchToggle = () => {
+  const newValue = !deepSearch;
+  setDeepSearch(newValue);
+  // NO localStorage - always resets to OFF
+  onToggleDeepSearch && onToggleDeepSearch(newValue);
+};
+```
+
+#### E) AIControlsPopup props
+```javascript
+<AIControlsPopup
+  isOpen={showAIControls}
+  onClose={() => setShowAIControls(false)}
+  isImageMode={isImageMode}
+  onToggleImageMode={handleImageModeToggle}
+  deepReasoning={deepReasoning}
+  onToggleDeepReasoning={handleDeepReasoningToggle}
+  deepSearch={deepSearch} // ✅ NOVÝ
+  onToggleDeepSearch={handleDeepSearchToggle} // ✅ NOVÝ
+/>
+```
+
+---
+
+### 3. **AIControlsPopup.jsx** (Enable Toggle)
+
+#### A) Props (~řádek 8)
+```javascript
+const AIControlsPopup = ({
+  isOpen,
+  onClose,
+  isImageMode,
+  onToggleImageMode,
+  deepReasoning,
+  onToggleDeepReasoning,
+  deepSearch, // ✅ NOVÝ
+  onToggleDeepSearch // ✅ NOVÝ
+})
+```
+
+#### B) Enable Deep Search toggle (~řádek 185-223)
+```javascript
+{/* 2. Deep search - NOW ENABLED */}
+<div
+  onClick={() => onToggleDeepSearch && onToggleDeepSearch()}
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 16px',
+    cursor: 'pointer', // ✅ Changed from 'not-allowed'
+    opacity: 1, // ✅ Changed from 0.5
+    transition: 'background 0.2s ease',
+  }}
+  onMouseEnter={(e) => {
+    e.currentTarget.style.background = isDark
+      ? 'rgba(255, 255, 255, 0.05)'
+      : isLight
+        ? 'rgba(0, 0, 0, 0.03)'
+        : 'rgba(74, 85, 104, 0.3)';
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.background = 'transparent';
+  }}
+>
+  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <Search size={20} color={getIconColor()} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <span style={{
+        fontSize: '15px',
+        color: getTextColor(),
+        fontWeight: '400',
+      }}>
+        Deep search
+      </span>
+      {/* ❌ REMOVE "Soon" badge - feature is live! */}
+    </div>
+  </div>
+  <Toggle enabled={deepSearch} disabled={false} /> {/* ✅ Enable toggle */}
+</div>
+```
+
+---
+
+### 4. **api/gemini.js** (Backend Config)
+
+#### A) Receive modelId parameter (~řádek 20)
+```javascript
+const {
+  requestId,
+  messages,
+  system,
+  summary,
+  max_tokens = 8000,
+  documents = [],
+  imageMode = false,
+  pdfMode = false,
+  language,
+  deepReasoning = false,
+  modelId = 'gemini-2.5-flash' // ✅ NOVÝ - Dynamic model selection
+} = req.body;
+```
+
+#### B) Model ID mapping
+```javascript
+// Model ID mapping: Frontend IDs → Vertex AI Model IDs
+const MODEL_MAP = {
+  'gemini-2.5-flash': 'gemini-2.5-flash',
+  'gemini-2.5-pro': 'gemini-2.5-pro-002' // ✅ NOVÝ - Deep Search model
+};
+
+const selectedModel = MODEL_MAP[modelId] || MODEL_MAP['gemini-2.5-flash'];
+console.log('🤖 [GEMINI] Using model:', selectedModel, 'for request:', requestId);
+```
+
+#### C) Deep Search detection & config
+```javascript
+// Deep Search mode detection
+const isDeepSearch = modelId === 'gemini-2.5-pro';
+
+if (isDeepSearch) {
+  console.log('🔍 [DEEP-SEARCH] Mode enabled: 24K thinking budget, 30 max sources');
+}
+
+// Generation config
+const generationConfig = {
+  temperature: 1,
+  maxOutputTokens: 8192,
+  topP: 0.95,
+  ...(isDeepSearch && {
+    // Deep Search: 24K thinking budget (always ON, ignores deepReasoning param)
+    thoughtConfig: {
+      thinkingBudget: 24000
+    }
+  })
+};
+
+// Search config
+const searchConfig = isDeepSearch
+  ? {
+      maxSources: 30,  // Deep Search mode
+      useGoogleSearch: true
+    }
+  : {
+      maxSources: 5,   // Normal mode
+      useGoogleSearch: true
+    };
+```
+
+#### D) Use in Vertex AI request
+```javascript
+const request = {
+  contents: vertexMessages,
+  generationConfig: generationConfig,
+  safetySettings: safetySettings,
+  tools: tools,
+  toolConfig: {
+    functionCallingConfig: {
+      mode: 'AUTO'
+    },
+    googleSearchRetrieval: searchConfig // ✅ Dynamic search config
+  }
+};
+
+// Start streaming with selected model
+const streamingResp = await generativeModel
+  .generateContentStream(request);
+```
+
+---
+
+### 5. **gemini.service.js** (Pass Model ID)
+
+#### A) Add model parameter to sendMessage (~řádek 11)
+```javascript
+async sendMessage(
+  messages,
+  onStreamUpdate = null,
+  onSearchStart = null,
+  onImageGenerationStart = null,
+  onPdfGenerationStart = null,
+  documents = [],
+  imageMode = false,
+  pdfMode = false,
+  summary = null,
+  deepReasoning = false,
+  model = 'gemini-2.5-flash' // ✅ NOVÝ - Default to Flash
+) {
+  // ...
+}
+```
+
+#### B) Send modelId to backend (~řádek 40)
+```javascript
+const response = await fetch('/api/gemini', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json; charset=utf-8'
+  },
+  body: JSON.stringify({
+    requestId: requestId,
+    messages: geminiMessages,
+    system: systemPrompt,
+    summary: summary,
+    max_tokens: 8000,
+    documents: documents,
+    imageMode: imageMode,
+    pdfMode: pdfMode,
+    language: detectedLanguage,
+    deepReasoning: deepReasoning,
+    modelId: model // ✅ NOVÝ - Send model selection
+  })
+});
+```
+
+---
+
+## 🎨 UX Details
+
+### Shimmer Text
+```javascript
+// During Deep Search streaming
+if (previousModel) {
+  shimmerText = "Deep Search analyzing...";
+} else if (isThinking) {
+  shimmerText = "Thinking...";
+} else if (searchingWeb) {
+  shimmerText = "Searching...";
+}
+```
+
+### No Badge on Completed Message
+Gemini sama vysvětlí v odpovědi co udělala:
+> "Based on my comprehensive analysis of 30 sources..."
+
+User ví že to byl Deep Search z detailnosti odpovědi.
+
+---
+
+## ✅ Testing Checklist
+
+### Basic Flow
+- [ ] Toggle Deep Search ON
+- [ ] Send message
+- [ ] Console: Model switch logged (`gemini-2.5-flash` → `gemini-2.5-pro`)
+- [ ] Shimmer: "Deep Search analyzing..."
+- [ ] Response arrives with detailed analysis
+- [ ] Console: Model restored logged
+- [ ] Toggle auto-disabled
+- [ ] Next message uses original model
+
+### Error Handling
+- [ ] Toggle Deep Search ON
+- [ ] Trigger API error (disconnect network)
+- [ ] Console: Rollback logged
+- [ ] Model restored to original
+- [ ] Toggle disabled
+- [ ] User message restored to input
+- [ ] Bot message removed
+
+### Edge Cases
+- [ ] Deep Search + Deep Reasoning both ON → Deep Reasoning ignored
+- [ ] Switch models while Deep Search toggle ON → Works correctly
+- [ ] Multiple rapid toggle clicks → State stable
+- [ ] Deep Search during Image Mode → ???
+
+### Context Preservation
+- [ ] Start with Flash: "What is OAuth2?"
+- [ ] Deep Search: "What are all security vulnerabilities?"
+- [ ] Back to Flash: "Apply that to my code"
+- [ ] Flash response references Deep Search findings ✅
+
+---
+
+## 💰 Cost Considerations
+
+### Pricing (approximate)
+| Model | Input | Output | Cost per query |
+|-------|-------|--------|----------------|
+| Flash | ~$0.0001 | ~$0.0004 | $0.0005 |
+| Pro (Deep Search) | ~$0.0015 | ~$0.006 | **$0.008** |
+
+**Deep Search je ~16x dražší než Flash!**
+
+### Usage Limits (Future)
+ChatGPT Pro má 3-5 Deep Searches per month i pro PAYING users.
+
+**Možné budoucí features:**
+- Daily/monthly usage counter
+- Warning: "You've used 2/5 Deep Searches this month"
+- Soft limit (warning) vs hard limit (block)
+- Premium tier = unlimited Deep Search
+
+**Pro teď:** Žádný limit - důvěřujeme userům + monitorujeme usage.
+
+---
+
+## 🚫 NOT Included in This Implementation
+
+1. **Gemini 2.5 Pro jako permanent model**
+   - Deep Search je ONLY temporary switch
+   - User nemůže vybrat Pro v ModelSelector
+   - Pro = expert consultation, ne daily driver
+
+2. **Usage tracking/analytics**
+   - Zatím žádný counter
+   - Žádné limity
+   - Přidáme později podle skutečného usage
+
+3. **Cost warnings**
+   - User nemá notifikaci o ceně
+   - Přidáme pokud bude abuse
+
+4. **Deep Search history indicator**
+   - Zprávy nemají badge "🔍 Deep Search"
+   - User pozná z detailnosti odpovědi
+
+---
+
+## ⏱️ Estimated Implementation Time
+
+- **Backend (api/gemini.js):** 5 minut
+- **Service (gemini.service.js):** 2 minuty
+- **State management (App.jsx):** 5 minut
+- **UI (InputBar + AIControlsPopup):** 3 minuty
+- **Testing:** 5 minut
+
+**Total:** ~20 minut čisté práce
+
+---
+
+## 📊 Architecture Benefits
+
+### Why This Design is Brilliant:
+
+1. **Zero User Friction**
+   - No manual model switching needed
+   - Toggle once → Get expert answer → Back to normal
+   - Brain doesn't have to remember "which model am I using?"
+
+2. **Cost Optimization**
+   - Pro only when explicitly needed
+   - Auto-revert prevents accidental expensive usage
+   - User gets "best of both worlds"
+
+3. **Context Preserved**
+   - Hierarchical memory works across models
+   - Deep Search findings available to all models
+   - Seamless conversation flow
+
+4. **Clean State Management**
+   - No localStorage pollution
+   - Auto-reset after use
+   - Zero edge cases with multi-toggle
+
+5. **Future-Proof**
+   - Easy to add usage tracking
+   - Easy to add more "expert modes"
+   - Pattern reusable for other temporary switches
+
+---
+
+## 🎯 Competitive Advantage
+
+| Platform | Deep Search | Auto-Revert | Context Preserved |
+|----------|-------------|-------------|-------------------|
+| **Omnia** | ✅ Yes | ✅ Yes | ✅ Yes |
+| ChatGPT | ✅ Yes (3-5/mo limit) | ❌ No | ❌ No |
+| Claude | ❌ No | - | - |
+| Gemini | ❌ No (Pro is separate) | - | - |
+
+**Omnia's Deep Search = Unique feature** - temporary expert mode s preserved context!
+
+---
+
+## 📝 Implementation Status
+
+- [x] Planning complete
+- [ ] Backend implementation
+- [ ] Service implementation
+- [ ] State management
+- [ ] UI updates
+- [ ] Testing
+- [ ] Documentation
+- [ ] Deployment
+
+---
+
+**Created:** 2025-01-25
+**Last Updated:** 2025-01-25
+**Status:** PLANNED - Ready for implementation

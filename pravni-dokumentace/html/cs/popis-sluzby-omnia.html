@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Popis sluzby Omnia One AI (technicko-pravni shrnuti)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <span class="lang-option active">Čeština</span><a class="lang-option" href="../en/service-overview.html">English</a><a class="lang-option" href="../ro/service-overview.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Popis sluzby Omnia One AI (technicko-pravni shrnuti)</h1>
+<p>Tento dokument shrnuje, co aplikace Omnia One AI dela, jak je navrzena a jake ma hlavni funkce. Obsah slouzi jako podklad pro komunikaci s uzivateli i pro pravni dokumentaci.</p>
+<h2>1. Zakladni predstava</h2>
+<p>Omnia One AI je webova a mobilne optimalizovana aplikace postavena na React + Vite, ktera uzivatelum poskytuje inteligentniho asistenta. Uzivatel muze psat, mluvit, nahravat soubory a prijimat odpovedi od vice modelu umele inteligence (Gemini, Claude, GPT-4o). Aplikace je navrzena pro vicejazycne pouziti (CZ, EN, RO atd.) a kombinuje textove, dokumentove i vizualni funkce.</p>
+<h2>2. Hlavni moduly</h2>
+<ul>
+<li><strong>Frontend (src/)</strong>: React komponenty pro chat, historii, nahravani souboru, generovani obsahu, nastaveni.</li>
+<li><strong>IndexedDB</strong>: lokalni uloziste <code>OmniaChatDB</code> pro rychly pristup k historii konverzaci a offline rezim.</li>
+<li><strong>Synchronizace</strong>: sluzba <code>chatSync.js</code> zajistuje upload do Supabase a realtime aktualizace mezi zarizenimi.</li>
+<li><strong>Backend API (api/)</strong>: serverless routy na Vercelu pro praci s AI modely, hlasovym vstupem/vystupem, zpracovanim dokumentu a mazanim uctu.</li>
+<li><strong>Supabase</strong>: autentizace, databaze (profiles, chats, messages, usage_metrics, subscriptions) a Storage.</li>
+<li><strong>Placene sluzby</strong>: Stripe (pokud je aktivni), Evidence spotreby (<code>usage_metrics</code>).</li>
+</ul>
+<h2>3. Funkcionality pro uzivatele</h2>
+<ol>
+<li><strong>Chat s AI</strong>: real-time odpovedi s podporou vice poskytovatelu.</li>
+<li><strong>Web search a citace</strong>: integrace <code>api/claude-web-search.js</code> vraci zdrojove odkazy, ktere se ukladaji jako <code>sources</code>.</li>
+<li><strong>Zpracovani dokumentu</strong>: upload souboru pres <code>api/process-document.js</code> s moznosti analyzy plain textu i PDF (Google Document AI).</li>
+<li><strong>Generovani obrazku a PDF</strong>: volani <code>api/imagen.js</code>, <code>api/generate-pdf.js</code> a ukladani vysledku do Storage.</li>
+<li><strong>Hlasove funkce</strong>: diky <code>api/google-stt.js</code>, <code>api/google-tts.js</code>, <code>api/elevenlabs-tts.js</code> lze diktovat i poslouchat odpovedi.</li>
+<li><strong>Sprava uctu</strong>: registrace, prihlaseni, zmena hesla, obnova pres OTP, nastaveni profilu, smazani uctu.</li>
+<li><strong>Mazani obsahu</strong>: mazani jednotlivych chatu nebo kompletniho uctu vcetne priloh.</li>
+<li><strong>Predplatne (volitelne)</strong>: tabulka <code>subscriptions</code> a integrace se Stripe pro spravu planu.</li>
+</ol>
+<h2>4. Datove toky</h2>
+<ol>
+<li><strong>Prihlaseni</strong>: uzivatel zada e-mail/heslo, Supabase vrati JWT, ktere se pouziva pro volani serveru.</li>
+<li><strong>Odeslani zpravy</strong>: frontend sestavi seznam <code>messages</code>, podle logiky vybere AI model a posle JSON na prislusny endpoint (napr. <code>/api/gemini</code>). Backend overi token, doplni roli, zavola AI API, odpoved streamuje zpet.</li>
+<li><strong>Nahrani souboru</strong>: soubor se posle na <code>/api/process-document</code>, kde se budto zpracuje lokalne (plain text), nebo preda Google Document AI. Metadata se vrati do aplikace a mohou byt ulozena v chatu.</li>
+<li><strong>Generovani obrazku</strong>: AI model vrati base64, backend ulozi obrazek do Supabase Storage a vrati public URL.</li>
+<li><strong>Synchronizace</strong>: <code>chatSyncService</code> porovnava lokalni a cloudova data, odesila nove zpravy, mazani se propaguje v obou smerech.</li>
+<li><strong>Mazani</strong>: volani <code>deleteChat</code> odstrani soubory a zaznamy. Mazani celeho uctu vola <code>/api/delete-account</code>.</li>
+</ol>
+<h2>5. Bezpecnost a ochrana dat</h2>
+<ul>
+<li>Autentizace a autorizace prochazi Supabase; backend ma service role klic.</li>
+<li>Row Level Security brani pristupu k cizim datum.</li>
+<li>Storage ma nastaveny owner check, proto muze soubory mazat jen jejich vlastnik.</li>
+<li>Vsechny API routy nastavuji CORS, limituji metody na POST/OPTIONS a kontroluji vstupy.</li>
+<li>Tokeny a credentiale jsou uchovany v promennych prostredi (Vercel secret manager).</li>
+<li>Chat historie se uklada lokalne i v Supabase, ale uzivatel ma vzdy moznost data smazat.</li>
+<li>Logy jsou minimalni a nesou pouze technicke informace.</li>
+</ul>
+<h2>6. Integrace tretich stran</h2>
+<table>
+<thead>
+<tr>
+<th>Poskytovatel</th>
+<th>Ucel</th>
+<th>Predavana data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Supabase</td>
+<td>autentizace, databaze, storage, realtime</td>
+<td>uzivatelske ID, chaty, zpravy, soubory</td>
+</tr>
+<tr>
+<td>Google Cloud Vertex AI</td>
+<td>odpovedi modelu Gemini</td>
+<td>obsah aktualni konverzace, systemove instrukce</td>
+</tr>
+<tr>
+<td>Anthropic Claude</td>
+<td>generativni odpovedi, web search</td>
+<td>text zpravy, metadata, prilohy (pokud jsou nutne)</td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td>GPT-4o odpovedi</td>
+<td>textove zpravy a systemove instrukce</td>
+</tr>
+<tr>
+<td>Google Document AI</td>
+<td>extrakce textu z dokumentu</td>
+<td>obsah nahraneho souboru</td>
+</tr>
+<tr>
+<td>Google TTS/STT</td>
+<td>prevod hlasu</td>
+<td>audio stream nebo text</td>
+</tr>
+<tr>
+<td>ElevenLabs</td>
+<td>TTS fallback</td>
+<td>text odpovedi</td>
+</tr>
+<tr>
+<td>Stripe</td>
+<td>predplatne</td>
+<td>identifikatory uzivatele, plan, stav</td>
+</tr>
+</tbody>
+</table>
+<h2>7. Uzivatelska kontrola</h2>
+<ul>
+<li>V UI jsou dostupne akce pro smazani chatu, vymazani vsech dat a zruseni uctu.</li>
+<li>Pri mazani chatu se zobrazi dialog s potvrzenim (<code>deleteConfirmation</code>).</li>
+<li>Pri nahravani souboru je zobrazena historie a moznost stahnout priloha zpatky.</li>
+<li>Nastaveni profilu uklada pouze dobrovolne udaje (jmeno, prezdivka).</li>
+<li>Pokud nejsou environment variables pro Supabase k dispozici, aplikace pracuje v offline modu bez odesilani dat do cloudu.</li>
+</ul>
+<h2>8. Technologie a nasazeni</h2>
+<ul>
+<li>Build je rizeny pomoci Vite (<code>npm run build</code>), deployment typicky na Vercel.</li>
+<li>API routy vyuzivaji Node fetch, streaming pres <code>application/x-ndjson</code> pro AI odpovedi.</li>
+<li>Pro PDF generovani je pripojen Puppeteer (<code>api/generate-pdf.js</code>).</li>
+<li>Soucasti projektu je i adresar <code>docs/</code> s technickymi popisy architektury, realtime, synchronizace.</li>
+</ul>
+<h2>9. Omezeni a varovani</h2>
+<ul>
+<li>AI odpovedi mohou byt nepresne; dokumentace doporucuje overovat dulezite informace.</li>
+<li>Modely tretich stran mohou docasne uchovavat data pro ucely diagnostiky.</li>
+<li>Pri chybejicim API klici ma backend zcela ukoncit zadost a vracet vhodne chybove kody.</li>
+<li>Velke soubory jsou omezeny (napr. 10 MB pro audio v Google STT).</li>
+<li>Offline rezim nezahrnuje sifrovani na urovni aplikace (spoleha na zabezpeceni prohlizece).</li>
+</ul>
+<hr>
+<p>Tento popis byl vytvoren na zaklade zdrojoveho kodu dostupneho k 15. unoru 2025 a slouzi jako doprovodna dokumentace k pravnim souborum.</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lista de conformitate GDPR Omnia One AI</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/gdpr-soulad.html">Čeština</a><a class="lang-option" href="../en/gdpr-compliance.html">English</a><span class="lang-option active">Română</span>
+      </div>
+    </div>
+  </nav>
+<h1>Lista de conformitate GDPR Omnia One AI</h1>
+<p>Data: 2 noiembrie 2025</p>
+<p>Acest document rezumă modul în care Omnia One AI respectă cerințele GDPR și planul de gestionare a riscurilor.</p>
+<h2>1. Operator și contacte</h2>
+<ul>
+<li><strong>Operator</strong>: Cristian Bucioaca, Omnia One AI.</li>
+<li><strong>Contact pentru confidențialitate</strong>: <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>.</li>
+<li>Nu este numit un DPO; Operatorul gestionează direct protecția datelor.</li>
+</ul>
+<h2>2. Temeiuri legale</h2>
+<ul>
+<li>Executarea contractului (art. 6 alin. 1 lit. b): crearea conturilor, funcțiile asistentului AI, gestionarea abonamentelor.</li>
+<li>Obligație legală (art. 6 alin. 1 lit. c): evidența fiscală și contabilă prin Stripe.</li>
+<li>Interes legitim (art. 6 alin. 1 lit. f): logare securitate, gestionarea incidentelor, analize agregate.</li>
+<li>Consimțământ (art. 6 alin. 1 lit. a): doar când Utilizatorul furnizează date sensibile; nu este necesar pentru funcțiile de bază.</li>
+</ul>
+<h2>3. Minimizarea și limitarea stocării</h2>
+<ul>
+<li>Politicile RLS active permit accesul doar la propriile date.</li>
+<li>IndexedDB local păstrează date doar pentru modul offline; utilizatorii le pot șterge din aplicație.</li>
+<li>Storage Supabase conține doar fișierele asociate chat-urilor curente; la ștergerea chat-ului, fișierele dispar.</li>
+<li>Logurile includ doar identificatori esențiali (ID, timp, cod status).</li>
+</ul>
+<h2>4. Drepturile persoanelor vizate</h2>
+<ol>
+<li><strong>Acces</strong>: exporturi furnizate în 30 de zile.</li>
+<li><strong>Rectificare</strong>: editarea datelor de profil (<code>ProfileService.saveProfile</code>).</li>
+<li><strong>Ștergere</strong>: <code>delete-account.js</code> elimină contul și datele aferente.</li>
+<li><strong>Restricționare</strong>: se poate dezactiva sincronizarea sau anula abonamentul.</li>
+<li><strong>Portabilitate</strong>: exporturi în format JSON/CSV din Supabase.</li>
+<li><strong>Opoziție</strong>: se poate solicita reevaluarea prelucrărilor bazate pe interes legitim; testul de echilibrare este documentat.</li>
+<li><strong>Plângere</strong>: către autoritatea națională (<a href="http://www.dataprotection.ro">www.dataprotection.ro</a>).</li>
+</ol>
+<h2>5. Acorduri cu persoane împuternicite</h2>
+<ul>
+<li><strong>Supabase</strong>: DPA inclus în abonament; găzduire în UE.</li>
+<li><strong>Google Cloud</strong>: DPA pentru Vertex AI, Document AI, Cloud Storage, TTS, STT (regiune <code>us-central1</code> pentru Vertex și regiunea setată pentru Document AI).</li>
+<li><strong>Anthropic</strong>: termenii API prevăd retenție scurtă pentru evaluarea calității.</li>
+<li><strong>OpenAI</strong>: DPA dedicat, conexiune HTTPS.</li>
+<li><strong>ElevenLabs</strong>: procesează text pentru sinteză vocală fără stocare pe termen lung.</li>
+<li><strong>Stripe</strong>: operator independent pentru plăți, cu propriul DPA.</li>
+</ul>
+<h2>6. Evaluarea riscurilor și DPIA</h2>
+<ul>
+<li>Aplicația gestionează conversații text ce pot include informații sensibile introduse voluntar de utilizator.</li>
+<li>Riscurile sunt reduse deoarece datele sunt vizibile doar utilizatorului și furnizorilor de AI; nu sunt publice.</li>
+<li>Având în vedere domeniul și baza de utilizatori, nu este necesar momentan un DPIA formal; există evidențe tehnice pentru audit.</li>
+<li>Dacă Omnia va introduce decizii automatizate cu impact juridic semnificativ, se va realiza o DPIA.</li>
+</ul>
+<h2>7. Măsuri de securitate</h2>
+<ul>
+<li>Transport criptat (HTTPS) pentru toate API-urile.</li>
+<li>Cheile de service sunt stocate exclusiv pe backend.</li>
+<li>Fișierele din Storage se șterg automat înaintea ștergerii chat-ului.</li>
+<li>Validare input (limite de fișier, sanitizare text pentru TTS).</li>
+<li>Loguri minimale cu acces restricționat.</li>
+<li>Actualizări regulate ale dependențelor (npm audit, monitorizare CVE).</li>
+</ul>
+<h2>8. Plan de răspuns la incidente</h2>
+<ol>
+<li>Detectarea incidentelor prin loguri (<code>console.error</code>, monitorizare Vercel/Supabase).</li>
+<li>Revocarea rapidă a cheilor API compromise și a sesiilor Supabase.</li>
+<li>Evaluarea impactului: identificarea tabelelor/utilizatorilor afectați.</li>
+<li>Notificarea utilizatorilor afectați în maxim 72 de ore, dacă există risc pentru drepturi și libertăți.</li>
+<li>Informarea autorității de supraveghere, dacă este necesar.</li>
+<li>Documentarea incidentului și actualizarea planului.</li>
+</ol>
+<h2>9. Documentație și audit</h2>
+<ul>
+<li>Aceasta este versiunea 1.0 stocată în directorul <code>pravni-dokumentace</code>.</li>
+<li>Actualizările sunt urmărite în Git pentru trasabilitate.</li>
+<li>Orice modificare funcțională care afectează prelucrarea datelor implică revizuirea acestei liste și a registrului.</li>
+</ul>
+<hr>
+<p>Document de lucru pentru demonstrarea conformității GDPR; trebuie completat cu acordurile și procedurile relevante implementării în producție.</p>
+  </main>
+</body>
+</html>

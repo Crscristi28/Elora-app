@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omnia Authentication and Security Overview</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/autentizace-a-bezpecnost.html">Čeština</a><span class="lang-option active">English</span><a class="lang-option" href="../ro/authentication-and-security.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Omnia Authentication and Security Overview</h1>
+<p>This document describes how authentication, authorisation and data protection are implemented in Omnia One AI. It is derived from the source code in the <code>api/</code>, <code>src/services/</code> and <code>supabase/</code> directories and from Supabase documentation.</p>
+<h2>1. Registration and Sign-In</h2>
+<ul>
+<li>Registration and login use Supabase Auth (<code>supabase.auth.signUp</code>, <code>supabase.auth.signInWithPassword</code>).</li>
+<li>Supabase stores passwords hashed (bcrypt) and issues JWT tokens that expire after 60 minutes and refresh automatically.</li>
+<li>On the client, <code>src/services/auth/supabaseAuth.js</code> offers sign-in, sign-out, password reset (OTP) and session listeners.</li>
+<li>Access tokens are never forwarded directly to third parties; when calling Omnia API routes they are sent via the <code>Authorization: Bearer</code> header.</li>
+</ul>
+<h2>2. Backend Verification</h2>
+<ul>
+<li>Server routes (<code>api/claude.js</code>, <code>api/gemini.js</code> and others) instantiate Supabase with the service role key (<code>SUPABASE_SERVICE_ROLE_KEY</code>).</li>
+<li>Each request extracts the JWT token from the header and verifies it with <code>supabase.auth.getUser(token)</code>.</li>
+<li>Invalid tokens result in <code>401 Unauthorized</code>.</li>
+<li>After verification the backend queries the <code>profiles</code> table to retrieve the user role. Missing records default to <code>'user'</code>.</li>
+</ul>
+<h2>3. Roles and Permissions</h2>
+<ul>
+<li>The <code>profiles</code> table includes a <code>role</code> column (e.g. <code>user</code>, <code>owner</code>).</li>
+<li>Roles can be configured via the SQL script <code>supabase/add-admin-role.sql</code>.</li>
+<li>Backend logic uses the role flag to unlock privileged features (admin tools, priority access).</li>
+<li>If the role lookup fails the system falls back to standard user permissions.</li>
+</ul>
+<h2>4. Row Level Security and Database Access</h2>
+<ul>
+<li>All critical tables (<code>chats</code>, <code>messages</code>, <code>profiles</code>, <code>usage_metrics</code>, <code>subscriptions</code>) enforce Row Level Security.</li>
+<li>Policies ensure that <code>auth.uid() = user_id</code> (or <code>auth.uid() = id</code> in case of <code>profiles</code>), so Users only access their own rows.</li>
+<li>Inserts and deletes also require the record to belong to the authenticated user.</li>
+<li>Triggers like <code>update_updated_at_column</code> keep <code>updated_at</code> timestamps current for synchronisation purposes.</li>
+</ul>
+<h2>5. File Storage</h2>
+<ul>
+<li>Attachments are stored in Supabase Storage (bucket <code>attachments</code>), AI images in <code>generated-images</code>, PDFs in <code>generated-pdfs-temp</code>.</li>
+<li>Uploads via <code>supabase.storage.from(bucket).upload(...)</code> automatically set <code>owner = auth.uid()</code>.</li>
+<li>File deletions use <code>deleteFromSupabaseStorage</code>, which is allowed only for the owner thanks to Storage policies.</li>
+<li>When the User deletes a chat (<code>chatDB.deleteChat</code>) the logic removes Storage files before deleting <code>messages</code> and <code>chats</code>.</li>
+</ul>
+<h2>6. Local Storage and Synchronisation</h2>
+<ul>
+<li>IndexedDB (Dexie) stores offline data under the name <code>OmniaChatDB</code>.</li>
+<li>Schema versions add new columns (attachments, images, pdf, sources) with explicit migration logs.</li>
+<li>Synchronisation with Supabase is handled by <code>src/services/sync/chatSync.js</code>. It checks authentication before uploading and transmits only the current user's records.</li>
+<li>Deletions propagate to realtime listeners so that changes appear on other devices.</li>
+</ul>
+<h2>7. Account and Data Deletion</h2>
+<ul>
+<li>The backend endpoint <code>api/delete-account.js</code> calls <code>supabase.auth.admin.deleteUser(userId)</code> to remove the user, cascading to profiles, chats, messages and related files.</li>
+<li>This operation is irreversible; data cannot be restored after the deletion.</li>
+<li>Users can export conversations before requesting deletion.</li>
+</ul>
+<h2>8. API Keys and Third-Party Access</h2>
+<ul>
+<li>All secrets (Google, Anthropic, OpenAI, ElevenLabs, Stripe) are loaded from environment variables and never exposed to the client.</li>
+<li>The backend checks for missing keys and responds with HTTP 500 plus a safe message if the configuration is incomplete.</li>
+<li>Requests to third-party APIs send only the data required for the specific function (e.g. current message, text to synthesize).</li>
+</ul>
+<h2>9. Incident Response</h2>
+<ul>
+<li>Runtime errors are logged to the console (visible in Vercel logs) with minimal personal data.</li>
+<li>The Provider monitors <code>console.error</code> and <code>console.warn</code> outputs to catch anomalies.</li>
+<li>In case of a security incident, tokens can be revoked in Supabase and API keys rotated immediately.</li>
+</ul>
+<h2>10. User Recommendations</h2>
+<ul>
+<li>Use a unique password and enable MFA on the mail account used for login.</li>
+<li>If suspicious activity occurs, change the password and notify support right away.</li>
+<li>Do not share tokens or API keys with third parties.</li>
+<li>Periodically delete unnecessary chats and attachments to limit stored data.</li>
+</ul>
+<hr>
+<p>This document reflects the security architecture of Omnia One AI as of 2 November 2025.</p>
+  </main>
+</body>
+</html>

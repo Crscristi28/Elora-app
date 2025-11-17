@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manifest Omnia One AI – principii și capabilități</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/omnia-manifest.html">Čeština</a><a class="lang-option" href="../en/omnia-manifest.html">English</a><span class="lang-option active">Română</span>
+      </div>
+    </div>
+  </nav>
+<h1>Manifest Omnia One AI – principii și capabilități</h1>
+<p>Acest manifest explică de ce Omnia este proiectată ca un asistent AI offline-first, orientat spre confidențialitate, și cum funcționează în practică. Afirmațiile se sprijină pe codul din proiect (baza IndexedDB, sincronizarea Supabase, rutele API) și pe funcționalitățile actuale.</p>
+<h2>1. Experiență offline-first</h2>
+<ul>
+<li>Baza locală <code>OmniaChatDB</code> (Dexie/IndexedDB) stochează chat-urile și atașamentele direct în browser, astfel încât utilizatorii pot continua și fără conexiune.</li>
+<li>Stratul de sincronizare (<code>src/services/sync/chatSync.js</code>) trimite datele în cloud doar când există conexiune și ține cont de preferințele utilizatorului.</li>
+<li>Dacă variabilele de mediu Supabase lipsesc, aplicația trece în modul local și nu transmite date.</li>
+</ul>
+<h2>2. Confidențialitate și control</h2>
+<ul>
+<li>Token-urile sunt verificate doar pe backend (cheie de service); clientul nu primește acces privilegiate.</li>
+<li>Politicile RLS Supabase asigură că utilizatorii văd numai chat-urile, mesajele și fișierele proprii.</li>
+<li>Bucket-urile Storage aplică dreptul de proprietate; doar autorul poate șterge atașamentele, imaginile sau PDF-urile.</li>
+<li>Funcția <code>delete-account.js</code> șterge complet contul prin <code>supabase.auth.admin.deleteUser</code>, incluzând profile, chat-uri și mesaje.</li>
+<li>Ștergerea chat-urilor (<code>chatDB.deleteChat</code>) elimină întâi fișierele din Storage și apoi intrările din baze de date.</li>
+<li>Omnia nu vinde și nu divulgă date terților decât în limitele API-urilor integrate.</li>
+</ul>
+<h2>3. Fără antrenament pe datele clienților</h2>
+<ul>
+<li>Apelurile către API sunt configurate în modurile „no training” sau echivalente (Google Vertex AI, Anthropic, OpenAI).</li>
+<li>Logurile runtime conțin doar metadate tehnice (coduri de status, ID-uri) și nu includ conținutul conversațiilor.</li>
+</ul>
+<h2>4. Datele utilizatorului sunt mereu accesibile</h2>
+<ul>
+<li>Istoricul conversațiilor este disponibil local și, după sincronizare, în Supabase.</li>
+<li>Interfața permite exportul și personalizează prompturile pe baza profilului.</li>
+<li>La schimbarea dispozitivului, <code>chatSyncService</code> recuperează conversațiile după autentificare.</li>
+</ul>
+<h2>5. Ce poate face Omnia</h2>
+<ul>
+<li><strong>AI text</strong>: integrează Gemini 2.5 Flash, Claude Sonnet/Haiku și GPT-4o; utilizatorul poate comuta între modele în același context.</li>
+<li><strong>Generare conținut</strong>: text, rezumate, structuri, rapoarte PDF (<code>api/generate-pdf.js</code>).</li>
+<li><strong>Procesare fișiere</strong>: <code>api/process-document.js</code> suportă text și PDF via Google Document AI.</li>
+<li><strong>Imagini</strong>: imaginile generate se salvează în Supabase (<code>generated-images</code>) și pot fi descărcate.</li>
+<li><strong>Voce</strong>: conversie vorbire-text (<code>api/google-stt.js</code>) și text-vorbire (<code>api/google-tts.js</code>, <code>api/elevenlabs-tts.js</code>).</li>
+<li><strong>Chat-uri nelimitate</strong>: nu există limitări artificiale; paginarea și ștergerea mențin performanța.</li>
+<li><strong>Sincronizare rapidă</strong>: Supabase Realtime propagă actualizările pe toate dispozitivele.</li>
+</ul>
+<h2>6. De ce Omnia este diferită</h2>
+<ul>
+<li>Mai multe modele AI împart același context, permițând comparații și comutări fără pierderea istoricului.</li>
+<li>Arhitectura offline-first reduce latențele și întărește confidențialitatea, menținând datele la utilizator.</li>
+<li>Mecanismele de securitate (auth, storage, sync) sunt documentate public pentru audit.</li>
+<li>Echipele pot folosi metricile Supabase pentru fluxuri suplimentare (billing, monitorizare agenți).</li>
+<li>Aplicația suportă mai multe limbi (RO, CZ, EN, DE etc.) și detectează automat limba în text și voce.</li>
+</ul>
+<h2>7. Angajamente față de utilizatori</h2>
+<ul>
+<li><strong>Transparență</strong>: termenii, politica de confidențialitate și acest manifest sunt disponibile în <code>pravni-dokumentace</code> și se actualizează.</li>
+<li><strong>Ștergerea datelor</strong>: ștergerea contului curăță și bucket-urile Storage.</li>
+<li><strong>Planuri deschise</strong>: documentele din <code>docs/</code> descriu dezvoltările viitoare (agenți, sync realtime).</li>
+<li><strong>Feedback</strong>: <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a> este canalul principal pentru solicitări și incidente.</li>
+</ul>
+<hr>
+<p>Manifest public privind angajamentul Omnia One AI față de confidențialitate, arhitectură offline-first și setul de funcții la data de 2 noiembrie 2025.</p>
+  </main>
+</body>
+</html>

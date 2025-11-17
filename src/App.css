@@ -1,0 +1,99 @@
+/* App.css - Now using Tailwind CSS for styling */
+
+/* Keep only essential keyframes and animations that are used in inline styles */
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 🎨 Loading dots animations */
+.image-loading-dots {
+  display: inline-flex;
+  align-items: center;
+}
+
+.image-loading-dots span {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin: 0 3px;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.image-loading-dots span:nth-child(1) { 
+  animation-delay: -0.32s; 
+  background-color: #ff6b6b; 
+}
+.image-loading-dots span:nth-child(2) { 
+  animation-delay: -0.16s; 
+  background-color: #4ecdc4; 
+}
+.image-loading-dots span:nth-child(3) { 
+  animation-delay: 0s;
+  background-color: #45b7d1; 
+}
+
+/* 💬 Chat loading dots - Elora blue */
+.chat-loading-dots {
+  display: inline-flex;
+  align-items: center;
+}
+
+.chat-loading-dots span {
+  display: inline-block;
+  width: 10px;
+  height: 10px;  
+  border-radius: 50%;
+  margin: 0 3px;
+  background-color: #00ffff;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.chat-loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+.chat-loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+.chat-loading-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { 
+    transform: scale(0.8); 
+    opacity: 0.5; 
+  }
+  40% { 
+    transform: scale(1.2); 
+    opacity: 1; 
+  }
+}
+
+/* 🎨 Breathing animation for streaming - Pure CSS for performance */
+@keyframes subtle-breathing {
+  0%, 100% { 
+    transform: translateY(0px);
+    opacity: 0.95;
+  }
+  50% { 
+    transform: translateY(-2px);
+    opacity: 1;
+  }
+}
+
+.streaming-breathing {
+  animation: subtle-breathing 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+

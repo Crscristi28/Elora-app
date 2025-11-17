@@ -1,0 +1,1 @@
+export { default as SimpleVoiceRecorder } from './SimpleVoiceRecorder.jsx';

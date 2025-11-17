@@ -1,0 +1,136 @@
+# 🍎 iOS 26 Keyboard Accessory View (IAV) Fix Documentation
+
+## 📋 Problem Summary
+iOS 26 introduced changes to PWA keyboard behavior that caused a white accessory bar to appear above the keyboard, breaking the visual consistency of dark-themed apps.
+
+## ✅ Solutions Implemented
+
+### 1. Dynamic Theme-Based Body Background (MAIN FIX)
+**Location:** `src/App.jsx` line 113
+```javascript
+document.body.style.backgroundColor = isDark ? '#1a1a1a' : '#004e92';
+```
+
+**Why this works:**
+- PWA ignores CSS variables for IAV color
+- Direct JavaScript styling bypasses CSS limitations
+- IAV takes color from body background-color
+
+### 2. Status Bar Color Separation
+**Location:** `src/App.jsx` line 99
+```javascript
+metaThemeColor.setAttribute('content', isDark ? '#000000' : '#000428');
+```
+
+**Color Scheme:**
+- **Status Bar (Notch):** Black/Dark Blue (`#000000` / `#000428`)
+- **IAV (Keyboard):** Gray/Light Blue (`#1a1a1a` / `#004e92`)
+
+### 3. CSS Variables for Fallback
+**Location:** `src/index.css` lines 71-86
+```css
+:root {
+  --app-bg-gradient: linear-gradient(135deg, #000428, #004e92, #009ffd);
+  --app-bg-solid: #000428;
+}
+
+[data-theme="light"] {
+  --app-bg-gradient: linear-gradient(135deg, #000428, #004e92, #009ffd);
+  --app-bg-solid: #000428;
+}
+
+[data-theme="dark"] {
+  --app-bg-gradient: linear-gradient(135deg, #000000, #1a1a1a, #2a2a2a);
+  --app-bg-solid: #000000;
+}
+```
+
+### 4. Data-Theme Attribute Sync
+**Location:** `src/App.jsx` line 110
+```javascript
+document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+```
+
+### 5. Landing Page Fix
+**Files:** `public/omnia-website.html`, `public/css/styles.css`
+
+**Changes:**
+- Added iOS meta tags: `theme-color`, `apple-mobile-web-app-status-bar-style`
+- Restored white background (removed dark override)
+- Fixed legal links to always use English versions
+
+## 🔧 Technical Details
+
+### PWA vs Web Behavior
+- **Web Browser:** Respects CSS variables and meta tags
+- **PWA:** Ignores CSS variables, requires direct JavaScript styling
+
+### Key Files Modified
+1. `src/App.jsx` - Main logic for dynamic coloring
+2. `src/index.css` - CSS variables and fallback styling
+3. `public/omnia-website.html` - Landing page meta tags
+4. `public/css/styles.css` - Landing page background restoration
+5. `public/js/main.js` - Legal links fix
+6. `public/manifest.json` - PWA theme colors
+
+### ContentEditable Fallback (Alternative Solution)
+**Location:** `src/components/input/MultilineInput.jsx`
+
+**Implementation:**
+- Added `useContentEditable` prop
+- JavaScript placeholder support with CSS `::before`
+- Automatic iOS detection possible but not currently used
+
+## 🎯 Current Color Mapping
+
+### Dark Mode
+- Status Bar: `#000000` (Black)
+- IAV: `#1a1a1a` (Dark Gray)
+- UI Gradient: `#000000` → `#1a1a1a` → `#2a2a2a`
+
+### Light Mode
+- Status Bar: `#000428` (Dark Blue)
+- IAV: `#004e92` (Medium Blue)
+- UI Gradient: `#000428` → `#004e92` → `#009ffd`
+
+## 🚀 Future Improvements
+
+### Potential Enhancements
+1. **Auto-detection:** Detect iOS 26+ and apply fixes automatically
+2. **Fallback Strategy:** Use contentEditable on problematic iOS versions
+3. **Theme Sync:** Better synchronization between manifest and dynamic colors
+4. **User Control:** Allow users to toggle IAV fix on/off
+
+### Known Limitations
+1. **Manifest Colors:** Static, cannot change dynamically with theme
+2. **iOS Sandbox:** Limited control over system UI elements
+3. **Safari Dependency:** Relies on WebKit rendering behavior
+
+## 🐛 Troubleshooting
+
+### Common Issues
+1. **IAV still white:** Check if body.style.backgroundColor is being set by JavaScript
+2. **PWA doesn't update:** User needs to reinstall PWA after manifest changes
+3. **Status bar wrong color:** Verify meta theme-color is being updated dynamically
+
+### Debug Commands
+```javascript
+// Check current theme
+console.log(document.documentElement.getAttribute('data-theme'));
+
+// Check body background
+console.log(document.body.style.backgroundColor);
+
+// Check meta theme-color
+console.log(document.querySelector('meta[name="theme-color"]').content);
+```
+
+## 📚 References
+- Apple Developer Docs: PWA Meta Tags
+- iOS 26 WebKit Changes: Keyboard Accessory View behavior
+- Omnia Issue: White accessory bar visual consistency
+
+---
+**Branch:** `ios26-theme-fix`
+**Last Updated:** 2025-09-17
+**Status:** ✅ WORKING - Tested on iOS 26 PWA and Web

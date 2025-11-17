@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Autentizace a bezpecnostni opatreni Omnia One AI</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <span class="lang-option active">Čeština</span><a class="lang-option" href="../en/authentication-and-security.html">English</a><a class="lang-option" href="../ro/authentication-and-security.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Autentizace a bezpecnostni opatreni Omnia One AI</h1>
+<p>Tento dokument popisuje, jak je v aplikaci Omnia One AI resena autentizace, autorizace a ochrana dat. Informace vychazeji z analyzy kodu v adresarich <code>api/</code>, <code>src/services/</code>, <code>supabase/</code> a dokumentace Supabase.</p>
+<h2>1. Registrace a prihlaseni</h2>
+<ul>
+<li>Prihlasen i registrace probihaji pres Supabase Auth (<code>supabase.auth.signUp</code>, <code>supabase.auth.signInWithPassword</code>).</li>
+<li>Supabase uklada hesla hashovana (bcrypt) a vystavuje JWT token platny standardne 60 minut, ktery se automaticky obnovuje.</li>
+<li>Na klientu je pouzivan modul <code>src/services/auth/supabaseAuth.js</code>, ktery poskytuje funkce prihlaseni, odhlaseni, obnovy hesla (OTP) a sledovani stavu session.</li>
+<li>Pristupove tokeny se nikdy neodesilaji tretim stranam primo z prohlizece; pri volani vlastnich API jsou pridane do hlavicky <code>Authorization: Bearer</code>.</li>
+</ul>
+<h2>2. Overeni na backendu</h2>
+<ul>
+<li>Serverove endpointy (<code>api/claude.js</code>, <code>api/gemini.js</code>, dalsi) vytvari instanci Supabase klienta se service role klicem (<code>SUPABASE_SERVICE_ROLE_KEY</code>).</li>
+<li>Pri kazde zadosti se z hlavicky vybere JWT token a overi pres <code>supabase.auth.getUser(token)</code>.</li>
+<li>Pokud overeni selze, endpoint vraci <code>401 Unauthorized</code>.</li>
+<li>Po prihlaseni se dotazuje tabulka <code>profiles</code> na roli uzivatele. Neznamy nebo chybejici zaznam je vychozi <code>user</code>.</li>
+</ul>
+<h2>3. Role a opravneni</h2>
+<ul>
+<li>Tabulka <code>profiles</code> obsahuje sloupec <code>role</code> (napr. <code>user</code>, <code>owner</code>).</li>
+<li>Roli lze nastavit pomoci SQL skriptu <code>supabase/add-admin-role.sql</code>.</li>
+<li>Na backendu je role pouzita pro aktivaci rozsirene funkce (napr. pristup k administracnim nastrojum nebo prednosti ve fronte).</li>
+<li>I kdyz role neni nalezena, system volne nepovoluje rozsirena opravneni.</li>
+</ul>
+<h2>4. Row Level Security a databaze</h2>
+<ul>
+<li>Vsechny dulezite tabulky (<code>chats</code>, <code>messages</code>, <code>profiles</code>, <code>usage_metrics</code>, <code>subscriptions</code>) maji aktivni Row Level Security.</li>
+<li>Pristupova politika zajistuje, ze <code>auth.uid() = user_id</code> nebo <code>auth.uid() = id</code>. Uzivatel tak vidi pouze vlastni zaznamy.</li>
+<li>Pri vkladani a mazani dat se kontroluje, zda radek patri prave prihlasenemu uzivateli.</li>
+<li>Triggery <code>update_updated_at_column</code> aktualizuji cas <code>updated_at</code>, aby bylo mozne sledovat zmeny pro synchronizaci.</li>
+</ul>
+<h2>5. Ukladani priloh a souboru</h2>
+<ul>
+<li>Souborove prilohy se ukladaji v Supabase Storage (bucket <code>attachments</code>), AI obrazky v <code>generated-images</code>, PDF vystupy v <code>generated-pdfs-temp</code>.</li>
+<li>Pri uploadu se pouziva <code>supabase.storage.from(bucket).upload(...)</code>, coz automaticky nastavi <code>owner = auth.uid()</code>.</li>
+<li>Mazani souboru probiha pres <code>deleteFromSupabaseStorage</code>, ktere lze volat pouze pro vlastni soubory diky Storage RLS politike.</li>
+<li>Pri smazani chatu (<code>chatDB.deleteChat</code>) se nejdrive odstrani vazane soubory, teprve potom zaznamy <code>messages</code> a <code>chats</code>.</li>
+</ul>
+<h2>6. Lokalni uloziste a synchronizace</h2>
+<ul>
+<li>Pro offline rezim je pouzita IndexedDB (Dexie) pod nazvem <code>OmniaChatDB</code>.</li>
+<li>Verze schematu postupne pridavaji nove sloupce (attachments, images, pdf, sources) s duslednym logem migraci.</li>
+<li>Synchronizaci s cloudem zajistuje <code>src/services/sync/chatSync.js</code>. Pred odeslanim dat do Supabase zkontroluje, zda je uzivatel autentizovany, a odesila pouze vlastni zaznamy.</li>
+<li>Pri odstraneni dat se take odmazavaji pripadne zaznamy v realtime synchronizaci, aby se zmeny projevily na ostatnich zarizenich.</li>
+</ul>
+<h2>7. Smazani uctu a dat</h2>
+<ul>
+<li>Na backendu existuje endpoint <code>api/delete-account.js</code>, ktery volani <code>supabase.auth.admin.deleteUser(userId)</code> odstrani uzivatele z auth.users a spusti kaskadni mazani profilu, chatu, zprav a vazanych souboru.</li>
+<li>Tento postup je finalni a data nelze obnovit.</li>
+<li>Uzivatel si muze predtim stahnout vlastni konverzace; export lze pripravit na vyzadani.</li>
+</ul>
+<h2>8. Ochrana API klicu a tretich stran</h2>
+<ul>
+<li>Vsechny klice (Google, Anthropic, OpenAI, ElevenLabs, Stripe) jsou nacitany z promennych prostredi a nejsou exponovane na klienta.</li>
+<li>Backend kontroluje, zda klice existuji, a v pripade chybejici konfigurace vraci HTTP 500 s bezpecnou chybovou hlaskou.</li>
+<li>Pri volani tredistrannych API jsou posilany pouze nezbytne informace (napr. aktualni zpravy pro generativni model, text k prevodu hlasu).</li>
+</ul>
+<h2>9. Incident response</h2>
+<ul>
+<li>Logy selhani se zapisuji do konzole (viditelne ve vercel logu) s minimalnimi osobnimi udaji.</li>
+<li>Provozovatel sleduje ucast nekonci <code>console.error</code> a <code>console.warn</code> hlasky a muze podle nich reagovat.</li>
+<li>V pripade bezpecnostniho incidentu bude uzivatel informovan pres e-mail a dokument bude aktualizovan.</li>
+</ul>
+<h2>10. Dopurcena opatreni pro uzivatele</h2>
+<ul>
+<li>Pouzivejte jedinecne heslo a dvoufaktorovou autentizaci na e-mailove schrance.</li>
+<li>Pri podezreni na zneuziti okamzite zmente heslo a informujte podporu.</li>
+<li>Nepredavejte sve tokeny nebo API klice tretim stranam.</li>
+<li>Pravidelne mazte nepotrebne chaty a prilohy, aby nedochazelo k zbytecne akumulaci dat.</li>
+</ul>
+<hr>
+<p>Dokument reflektuje skutecny stav aplikace Omnia One AI k datu 2. listopadu 2025.</p>
+  </main>
+</body>
+</html>

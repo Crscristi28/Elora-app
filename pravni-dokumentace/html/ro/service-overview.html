@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sumar servicii Omnia One AI</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/popis-sluzby-omnia.html">Čeština</a><a class="lang-option" href="../en/service-overview.html">English</a><span class="lang-option active">Română</span>
+      </div>
+    </div>
+  </nav>
+<h1>Sumar servicii Omnia One AI</h1>
+<p>Acest document descrie ce face Omnia One AI, cum este proiectată și principalele funcționalități. Servește drept referință pentru comunicarea produsului și documentația juridică.</p>
+<h2>1. Concept</h2>
+<p>Omnia One AI este o aplicație React + Vite pentru web și mobil care oferă un asistent inteligent. Utilizatorii pot scrie, dicta, încărca fișiere și pot primi răspunsuri de la mai multe modele AI (Gemini, Claude, GPT-4o). Aplicația suportă mai multe limbi (română, cehă, engleză, germană etc.) și combină fluxuri text, documente și vizuale.</p>
+<h2>2. Module principale</h2>
+<ul>
+<li><strong>Frontend (<code>src/</code>)</strong>: componente React pentru chat, istoric, upload-uri, generare conținut și setări.</li>
+<li><strong>IndexedDB</strong>: baza locală <code>OmniaChatDB</code> pentru istoric offline.</li>
+<li><strong>Sincronizare</strong>: <code>chatSync.js</code> încarcă modificările în Supabase și primește actualizări realtime.</li>
+<li><strong>API backend (<code>api/</code>)</strong>: rute serverless (Vercel) pentru apeluri AI, funcții vocale, procesare documente și ștergere cont.</li>
+<li><strong>Supabase</strong>: autentificare, baze de date (<code>profiles</code>, <code>chats</code>, <code>messages</code>, <code>usage_metrics</code>, <code>subscriptions</code>) și Storage.</li>
+<li><strong>Servicii plătite</strong>: Stripe pentru abonamente, metrice pentru monitorizare.</li>
+</ul>
+<h2>3. Funcții pentru utilizatori</h2>
+<ol>
+<li><strong>Chat AI</strong>: răspunsuri în timp real de la mai mulți furnizori.</li>
+<li><strong>Căutare web și citări</strong>: <code>api/claude-web-search.js</code> întoarce surse salvate în <code>sources</code>.</li>
+<li><strong>Procesare documente</strong>: upload prin <code>api/process-document.js</code>, cu suport pentru text și PDF (Google Document AI).</li>
+<li><strong>Generare imagini și PDF</strong>: <code>api/imagen.js</code>, <code>api/generate-pdf.js</code> salvează rezultatele în Storage.</li>
+<li><strong>Instrumente vocale</strong>: recunoaștere vocală (<code>api/google-stt.js</code>) și sinteză (<code>api/google-tts.js</code>, <code>api/elevenlabs-tts.js</code>).</li>
+<li><strong>Gestionarea contului</strong>: înregistrare, autentificare, schimbare parolă, recuperare OTP, profil, ștergere cont.</li>
+<li><strong>Ștergere conținut</strong>: eliminarea chat-urilor specifice sau a întregului cont, inclusiv atașamente.</li>
+<li><strong>Abonamente (opțional)</strong>: tabela <code>subscriptions</code> și integrarea Stripe pentru planuri plătite.</li>
+</ol>
+<h2>4. Fluxuri de date</h2>
+<ol>
+<li><strong>Login</strong>: utilizatorul trimite e-mail și parolă, Supabase returnează un JWT folosit pentru apelurile API.</li>
+<li><strong>Trimitere mesaj</strong>: frontend-ul construiește lista <code>messages</code>, alege modelul și trimite JSON către endpoint (ex. <code>/api/gemini</code>). Backend-ul verifică token-ul, setează rolul și transmite răspunsul în streaming.</li>
+<li><strong>Upload fișier</strong>: <code>/api/process-document</code> prelucrează direct textul sau apelează Google Document AI; metadatele sunt returnate și pot fi salvate în chat.</li>
+<li><strong>Generare imagine</strong>: AI-ul returnează base64; backend-ul salvează în Supabase Storage și oferă un URL public.</li>
+<li><strong>Sincronizare</strong>: <code>chatSyncService</code> compară datele locale cu cele din cloud, urcă mesaje noi și propagă ștergerile.</li>
+<li><strong>Ștergere</strong>: <code>deleteChat</code> elimină fișierele din Storage și înregistrările asociate; <code>/api/delete-account</code> șterge complet contul.</li>
+</ol>
+<h2>5. Securitate și protecția datelor</h2>
+<ul>
+<li>Autentificarea și autorizarea folosesc Supabase cu cheia de service pe backend.</li>
+<li>Row Level Security blochează accesul la datele altor utilizatori.</li>
+<li>Bucket-urile Storage verifică proprietarul, permițând ștergerea doar de către autor.</li>
+<li>Rutele API aplică CORS, limitează metodele la POST/OPTIONS și validează inputul.</li>
+<li>Token-urile și credențialele sunt păstrate în variabile de mediu (Vercel).</li>
+<li>Istoricul chat-urilor este disponibil local și în Supabase; utilizatorul îl poate șterge oricând.</li>
+<li>Logurile sunt minimale și axate pe diagnostic tehnic.</li>
+</ul>
+<h2>6. Integrare cu terți</h2>
+<table>
+<thead>
+<tr>
+<th>Furnizor</th>
+<th>Scop</th>
+<th>Date transferate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Supabase</td>
+<td>autentificare, baze de date, storage, realtime</td>
+<td>ID utilizator, chat-uri, mesaje, fișiere</td>
+</tr>
+<tr>
+<td>Google Cloud Vertex AI</td>
+<td>răspunsuri Gemini</td>
+<td>context conversație, instrucțiuni de sistem</td>
+</tr>
+<tr>
+<td>Anthropic Claude</td>
+<td>răspunsuri generative, căutare web</td>
+<td>text, metadate, atașamente relevante</td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td>răspunsuri GPT-4o</td>
+<td>fragmente de conversație și instrucțiuni</td>
+</tr>
+<tr>
+<td>Google Document AI</td>
+<td>analiză documente</td>
+<td>conținutul fișierului încărcat</td>
+</tr>
+<tr>
+<td>Google TTS/STT</td>
+<td>servicii vocale</td>
+<td>flux audio sau text</td>
+</tr>
+<tr>
+<td>ElevenLabs</td>
+<td>alternativă TTS</td>
+<td>text pentru sinteză</td>
+</tr>
+<tr>
+<td>Stripe</td>
+<td>abonamente</td>
+<td>identificatori utilizator, plan, status plată</td>
+</tr>
+</tbody>
+</table>
+<h2>7. Controlul utilizatorului</h2>
+<ul>
+<li>Interfața oferă butoane pentru ștergerea chat-urilor, a tuturor datelor și închiderea contului.</li>
+<li>La ștergere apare dialogul de confirmare (<code>deleteConfirmation</code>).</li>
+<li>Istoricul fișierelor arată atașamentele disponibile și link-urile de descărcare.</li>
+<li>Setările de profil rețin doar câmpuri opționale (nume, pseudonim).</li>
+<li>Dacă lipsesc cheile Supabase, aplicația funcționează offline fără a trimite date în cloud.</li>
+</ul>
+<h2>8. Tehnologie și deploy</h2>
+<ul>
+<li>Vite gestionează build-ul (<code>npm run build</code>), iar deployment-ul standard este pe Vercel.</li>
+<li>Rutele API folosesc Fetch API și transmit răspunsurile în format <code>application/x-ndjson</code>.</li>
+<li>Pentru generarea PDF se folosește Puppeteer (<code>api/generate-pdf.js</code>).</li>
+<li>Directorul <code>docs/</code> conține referințe tehnice detaliate (arhitectură, realtime, sync).</li>
+</ul>
+<h2>9. Limitări și avertismente</h2>
+<ul>
+<li>Răspunsurile AI pot fi inexacte; documentația recomandă verificarea informațiilor esențiale.</li>
+<li>Modelele terțe pot reține temporar date pentru diagnostic.</li>
+<li>Lipsa unei chei API produce eroare imediat, evitând prelucrări incomplete.</li>
+<li>Există limite de dimensiune (ex. 10 MB pentru audio în Google STT).</li>
+<li>Modul offline se bazează pe securitatea browserului; nu există criptare suplimentară la nivel de aplicație.</li>
+</ul>
+<hr>
+<p>Pregătit pe baza codului sursă la 2 noiembrie 2025.</p>
+  </main>
+</body>
+</html>

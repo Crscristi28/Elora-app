@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omnia One AI GDPR Compliance Checklist</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/gdpr-soulad.html">Čeština</a><span class="lang-option active">English</span><a class="lang-option" href="../ro/gdpr-compliance.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Omnia One AI GDPR Compliance Checklist</h1>
+<p>Date: 2 November 2025</p>
+<p>This checklist summarises how Omnia One AI meets the key GDPR requirements and outlines risk management procedures.</p>
+<h2>1. Controller and Contacts</h2>
+<ul>
+<li><strong>Controller</strong>: Cristian Bucioaca, Omnia One AI.</li>
+<li><strong>Privacy contact</strong>: <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>.</li>
+<li>No dedicated DPO is appointed; the Controller handles data protection matters directly.</li>
+</ul>
+<h2>2. Legal Basis</h2>
+<ul>
+<li>Performance of contract (Art. 6(1)(b)): account creation, AI assistant features, subscription management.</li>
+<li>Legal obligation (Art. 6(1)(c)): tax and accounting records handled via Stripe.</li>
+<li>Legitimate interest (Art. 6(1)(f)): security logging, incident handling, aggregated analytics.</li>
+<li>Consent (Art. 6(1)(a)): only when the User voluntarily submits sensitive data; not required for core functionality.</li>
+</ul>
+<h2>3. Data Minimisation and Storage Limitation</h2>
+<ul>
+<li>Active RLS policies ensure users access only their own records.</li>
+<li>Local IndexedDB keeps data solely for offline functionality; Users can wipe it in-app.</li>
+<li>Supabase Storage holds only files linked to current chats; deleting a chat removes attachments.</li>
+<li>Logs include only essential identifiers (ID, timestamp, status code).</li>
+</ul>
+<h2>4. Data Subject Rights</h2>
+<ol>
+<li><strong>Access</strong>: Users can request exports; responses provided within 30 days.</li>
+<li><strong>Rectification</strong>: profile data editable via <code>ProfileService.saveProfile</code>.</li>
+<li><strong>Erasure</strong>: <code>delete-account.js</code> removes the account and cascaded data.</li>
+<li><strong>Restriction</strong>: Users may disable sync or cancel subscriptions.</li>
+<li><strong>Portability</strong>: exports available in JSON/CSV format from Supabase.</li>
+<li><strong>Objection</strong>: Users can challenge processing based on legitimate interests; a balancing test is documented.</li>
+<li><strong>Complaint</strong>: Users may contact the Office for Personal Data Protection (<a href="http://www.uoou.cz">www.uoou.cz</a>).</li>
+</ol>
+<h2>5. Processor Agreements</h2>
+<ul>
+<li><strong>Supabase</strong>: DPA included in the subscription; EU data hosting.</li>
+<li><strong>Google Cloud</strong>: DPA covering Vertex AI, Document AI, Cloud Storage, TTS, STT. Regions configured for <code>us-central1</code> (Vertex) and the selected Document AI region.</li>
+<li><strong>Anthropic</strong>: API terms specify short-term retention for quality evaluation.</li>
+<li><strong>OpenAI</strong>: Data Processing Addendum governs API usage; HTTPS connection enforced.</li>
+<li><strong>ElevenLabs</strong>: processes text inputs for speech synthesis without long-term storage.</li>
+<li><strong>Stripe</strong>: independent controller of payment information with its own DPA.</li>
+</ul>
+<h2>6. Risk Assessment and DPIA</h2>
+<ul>
+<li>The application handles conversational text that may include sensitive information entered by the User.</li>
+<li>Risks are mitigated because data are visible only to the User and the AI processing providers; nothing is publicly shared.</li>
+<li>Given the scope, limited monitoring and user base, a formal DPIA is not currently required. Internal records and technical documentation are kept to support future audits.</li>
+<li>If Omnia introduces automated decisions with significant legal effect, a DPIA will be prepared.</li>
+</ul>
+<h2>7. Security Measures</h2>
+<ul>
+<li>Encrypted transport (HTTPS) for all API calls.</li>
+<li>Service role keys stored on the backend only.</li>
+<li>Automatic removal of Storage files before deleting chats.</li>
+<li>Input validation (file size limits, text sanitisation before TTS).</li>
+<li>Minimal logging with restricted access.</li>
+<li>Regular dependency updates (npm audit, CVE monitoring).</li>
+</ul>
+<h2>8. Incident Response Plan</h2>
+<ol>
+<li>Detect incidents through logs (<code>console.error</code>, Vercel/Supabase monitoring).</li>
+<li>Revoke compromised API keys and Supabase sessions immediately.</li>
+<li>Assess impact: identify affected tables/users.</li>
+<li>Notify affected users via e-mail without undue delay (within 72 hours if a personal data breach is likely to cause risk).</li>
+<li>Report to the supervisory authority when necessary.</li>
+<li>Document the incident and update this plan.</li>
+</ol>
+<h2>9. Documentation and Audit Trail</h2>
+<ul>
+<li>This is version 1.0 stored in the <code>pravni-dokumentace</code> repository folder.</li>
+<li>Updates are tracked via Git history for traceability.</li>
+<li>Any functional change affecting data processing requires reviewing this checklist and the processing overview.</li>
+</ul>
+<hr>
+<p>This checklist is a working document illustrating GDPR compliance and should be complemented with signed processor agreements and operational procedures relevant to production deployment.</p>
+  </main>
+</body>
+</html>

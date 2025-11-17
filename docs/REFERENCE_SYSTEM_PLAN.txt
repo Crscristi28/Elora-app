@@ -1,0 +1,496 @@
+# 🎯 REFERENCE SYSTEM - KOMPLETNÍ IMPLEMENTAČNÍ PLÁN
+
+**Datum:** 2025-10-08
+**Výchozí commit:** 1a3a4ee (čistý stav s Flash Image multi-generation)
+**Cíl:** Umožnit Omnii přirozeně používat předchozí výstupy (obrazy, dokumenty, PDFy, zdroje)
+
+---
+
+## 📊 AKTUÁLNÍ STAV (commit 1a3a4ee)
+
+### ✅ Co JIŽ FUNGUJE:
+
+1. **App.jsx - Metadata se ukládají do zpráv:**
+   ```javascript
+   // Bot zprávy obsahují:
+   {
+     sender: 'bot',
+     text: '...',
+     sources: [],        // ✅ z Google Search
+     images: [...],      // ✅ z generování obrázků
+     pdf: {...}          // ✅ z PDF generování
+   }
+
+   // User zprávy obsahují:
+   {
+     sender: 'user',
+     text: '...',
+     attachments: [...]  // ✅ nahrané dokumenty
+   }
+   ```
+
+2. **Backend - Flash Image multi-image generation:**
+   - Sequential calls pro 1-3 obrázky
+   - Funguje v produkci
+
+### ❌ Co NEFUNGUJE - REFERENCE AWARENESS:
+
+**Problem #1: Frontend neposílá metadata na backend**
+
+`/src/services/ai/gemini.service.js` - `prepareGeminiMessages()` (řádky 198-210):
+```javascript
+// AKTUÁLNÍ STAV (ŠPATNĚ):
+let geminiMessages = validMessages.map(msg => {
+  const messageText = msg.aiText || msg.text || '';
+  return {
+    sender: msg.sender,
+    text: messageText,
+    content: messageText
+    // ❌ Žádné images
+    // ❌ Žádné attachments/documents
+    // ❌ Žádné pdf
+    // ❌ Žádné sources
+  };
+});
+```
+
+**Problem #2: Backend neextraktuje references**
+
+`/api/gemini.js` - Nedělá nic s metadata (pokud by je dostal):
+- Neextraktuje image URLs z posledních zpráv
+- Neextraktuje uploaded documents
+- Neextraktuje PDFs
+- Neextraktuje Google sources
+
+**Problem #3: Backend nevkládá references do system promptu**
+
+`/api/gemini.js` - System prompt neobsahuje info o dostupných assets:
+- Omnia neví jaké obrázky jsou v chatu
+- Omnia neví jaké dokumenty user nahrál
+- Omnia neví jaké PDFy vytvořila
+- Omnia neví jaké zdroje našla
+
+**Důsledek:**
+> User: "uprav ten poslední obrázek"
+> Omnia: "Potřebuji URL obrázku"
+> ❌ Měla by vědět automaticky!
+
+---
+
+## 🏗️ ARCHITEKTURA ŘEŠENÍ
+
+### Koncept - Oddělení konverzace od digitálních assetů:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  KONVERZACE (sumarizovatelná)                               │
+│  - User prompty, Omnia odpovědi                             │
+│  - Komprimuje se každých 99 zpráv                           │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  DIGITÁLNÍ ASSETY (explicitní reference)                    │
+│  - Obrázky (URLs z generování)                              │
+│  - Dokumenty (URLs z nahrání)                               │
+│  - PDFy (URLs z generování)                                 │
+│  - Zdroje (titulky + domény z Google Search)               │
+│  → Extraktují se z posledních 20 zpráv                      │
+│  → Vkládají se do system promptu jako dostupné reference    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Princip:
+1. Metadata se ukládají do zpráv (už funguje ✅)
+2. Frontend posílá metadata na backend (TODO 🆕)
+3. Backend extraktuje references z posledních zpráv (TODO 🆕)
+4. Backend vkládá references do system promptu (TODO 🆕)
+5. Omnia vidí dostupné assety a může je používat (TODO 🆕)
+
+---
+
+## 🔧 IMPLEMENTACE - 3 KROKY
+
+### KROK 1: Frontend - Posílat metadata na backend
+
+**Soubor:** `/src/services/ai/gemini.service.js`
+**Řádky:** 198-210
+**Funkce:** `prepareGeminiMessages(messages)`
+
+**ZMĚNA:**
+
+```javascript
+let geminiMessages = validMessages.map(msg => {
+  // Use aiText for AI processing if available, otherwise fall back to text
+  const messageText = msg.aiText || msg.text || '';
+  const message = {
+    sender: msg.sender,
+    text: messageText,
+    content: messageText
+  };
+
+  // 🔗 Include ALL metadata for reference system
+  if (msg.images && Array.isArray(msg.images) && msg.images.length > 0) {
+    message.images = msg.images;
+  }
+
+  if (msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+    message.documents = msg.attachments; // Rename attachments → documents for backend clarity
+  }
+
+  if (msg.pdf) {
+    message.pdf = msg.pdf;
+  }
+
+  if (msg.sources && Array.isArray(msg.sources) && msg.sources.length > 0) {
+    message.sources = msg.sources;
+  }
+
+  return message;
+});
+```
+
+**Co se stane:**
+- Frontend bude posílat na backend nejen `text` a `sender`, ale i všechna metadata
+- Backend dostane kompletní info o obrazech, dokumentech, PDFech, zdrojích
+
+---
+
+### KROK 2: Backend - Extraktovat references z posledních zpráv
+
+**Soubor:** `/api/gemini.js`
+**Umístění:** Před konstrukci `finalSystemInstruction` (cca řádek 106-140)
+
+**KÓD:**
+
+```javascript
+// ═══════════════════════════════════════════════════════════
+// 🔗 REFERENCE EXTRACTION - Extract assets from last 20 messages
+// ═══════════════════════════════════════════════════════════
+
+console.log('🔗 [REFERENCES] Extracting from last 20 messages...');
+
+const availableImages = [];
+const availableDocuments = [];
+const availablePdfs = [];
+const recentSources = [];
+
+// Process last 20 messages (recent context window)
+messages.slice(-20).forEach(msg => {
+  // 📸 IMAGES - from bot responses (generated images)
+  if (msg.sender === 'bot' && msg.images && Array.isArray(msg.images)) {
+    msg.images.forEach(img => {
+      // Only include images with valid Supabase URLs
+      if (img.storageUrl && img.storageUrl.startsWith('https://')) {
+        availableImages.push({
+          url: img.storageUrl,
+          timestamp: img.timestamp || msg.timestamp
+        });
+      }
+    });
+  }
+
+  // 📄 DOCUMENTS - from user uploads
+  if (msg.sender === 'user' && msg.documents && Array.isArray(msg.documents)) {
+    msg.documents.forEach(doc => {
+      // Documents use GCS URLs (gs://)
+      if (doc.storageUrl && doc.storageUrl.startsWith('gs://')) {
+        availableDocuments.push({
+          url: doc.storageUrl,
+          name: doc.name || 'Document',
+          type: doc.type || 'unknown',
+          timestamp: doc.timestamp || msg.timestamp
+        });
+      }
+    });
+  }
+
+  // 📋 PDFs - from bot responses (generated PDFs)
+  if (msg.sender === 'bot' && msg.pdf) {
+    availablePdfs.push({
+      title: msg.pdf.title || 'PDF Document',
+      url: msg.pdf.storageUrl || null,
+      timestamp: msg.pdf.timestamp || msg.timestamp
+    });
+  }
+
+  // 🔍 GOOGLE SOURCES - from bot responses (web search)
+  if (msg.sender === 'bot' && msg.sources && Array.isArray(msg.sources)) {
+    msg.sources.forEach(src => {
+      if (src.title && src.url) {
+        recentSources.push({
+          title: src.title,
+          url: src.url,
+          domain: src.domain || 'unknown'
+        });
+      }
+    });
+  }
+});
+
+// Limit sizes (prevent prompt bloat)
+const images = availableImages.slice(-10);      // Last 10 images
+const documents = availableDocuments.slice(-5); // Last 5 documents
+const pdfs = availablePdfs.slice(-3);          // Last 3 PDFs
+const sources = recentSources.slice(-8);       // Last 8 sources
+
+console.log('🔗 [REFERENCES] Extracted:', {
+  images: images.length,
+  documents: documents.length,
+  pdfs: pdfs.length,
+  sources: sources.length
+});
+```
+
+**Co se stane:**
+- Backend projde posledních 20 zpráv
+- Extraktuje všechny obrázky, dokumenty, PDFy, zdroje
+- Omezí počty (10/5/3/8) aby system prompt nebyl moc dlouhý
+
+---
+
+### KROK 3: Backend - Inject references do system promptu
+
+**Soubor:** `/api/gemini.js`
+**Umístění:** Na konec `finalSystemInstruction` (před odesláním na API)
+
+**KÓD:**
+
+```javascript
+// ═══════════════════════════════════════════════════════════
+// 🔗 INJECT REFERENCES into system prompt
+// ═══════════════════════════════════════════════════════════
+
+// 📸 AVAILABLE IMAGES
+if (images.length > 0) {
+  finalSystemInstruction += '\n\n═══════════════════════════════════════\n';
+  finalSystemInstruction += '📸 **IMAGES IN THIS CHAT:**\n\n';
+
+  images.forEach((img, i) => {
+    finalSystemInstruction += `[${i + 1}] ${img.url}\n`;
+  });
+
+  finalSystemInstruction += '\n💡 **Usage:**\n';
+  finalSystemInstruction += '- When user says "edit this image" or "edit the last image" → use edit_image(prompt, url)\n';
+  finalSystemInstruction += '- When user says "combine these images" → use combine_images(prompt, [url1, url2])\n';
+  finalSystemInstruction += '- You can reference images by number [1], [2], etc.\n';
+}
+
+// 📄 AVAILABLE DOCUMENTS
+if (documents.length > 0) {
+  finalSystemInstruction += '\n\n═══════════════════════════════════════\n';
+  finalSystemInstruction += '📄 **UPLOADED DOCUMENTS:**\n\n';
+
+  documents.forEach((doc, i) => {
+    finalSystemInstruction += `[${i + 1}] ${doc.name} (${doc.type})\n`;
+    finalSystemInstruction += `    ${doc.url}\n`;
+  });
+
+  finalSystemInstruction += '\n💡 **Usage:**\n';
+  finalSystemInstruction += '- When user says "that document" or "the PDF I uploaded" → reference these\n';
+  finalSystemInstruction += '- User already uploaded them, you have analyzed them\n';
+}
+
+// 📋 AVAILABLE PDFs
+if (pdfs.length > 0) {
+  finalSystemInstruction += '\n\n═══════════════════════════════════════\n';
+  finalSystemInstruction += '📋 **GENERATED PDFs:**\n\n';
+
+  pdfs.forEach((pdf, i) => {
+    finalSystemInstruction += `[${i + 1}] "${pdf.title}"`;
+    if (pdf.url) {
+      finalSystemInstruction += ` - ${pdf.url}`;
+    }
+    finalSystemInstruction += '\n';
+  });
+
+  finalSystemInstruction += '\n💡 **Usage:**\n';
+  finalSystemInstruction += '- When user says "create another PDF like the last one" → reference structure\n';
+  finalSystemInstruction += '- You created these PDFs in this conversation\n';
+}
+
+// 🔍 RECENT GOOGLE SOURCES
+if (sources.length > 0) {
+  finalSystemInstruction += '\n\n═══════════════════════════════════════\n';
+  finalSystemInstruction += '🔍 **RECENT SEARCH SOURCES:**\n\n';
+
+  sources.forEach((src, i) => {
+    finalSystemInstruction += `[${i + 1}] ${src.title}\n`;
+    finalSystemInstruction += `    ${src.domain} - ${src.url}\n`;
+  });
+
+  finalSystemInstruction += '\n💡 **Usage:**\n';
+  finalSystemInstruction += '- When user says "those sources" or "that article" → reference these\n';
+  finalSystemInstruction += '- You found these via Google Search in this conversation\n';
+}
+
+console.log('🔗 [REFERENCES] Injected into system prompt');
+```
+
+**Co se stane:**
+- System prompt bude obsahovat seznam všech dostupných assetů
+- Omnia uvidí obrázky, dokumenty, PDFy, zdroje s URLs
+- Může je přirozeně používat bez nutnosti user zadávat URLs
+
+---
+
+## ✅ TESTOVACÍ SCÉNÁŘE
+
+Po implementaci otestovat následující případy:
+
+### Test 1: Auto-detekce obrázků
+```
+User: "vygeneruj obrázek psa"
+Omnia: [generuje obrázek]
+User: "udělej ho černobílý"
+Omnia: ✅ Použije edit_image() s URL z předchozího obrázku (bez nutnosti user zadávat URL)
+```
+
+### Test 2: Kombinace více obrázků
+```
+User: "vygeneruj obrázek auta"
+Omnia: [generuje obrázek]
+User: "vygeneruj obrázek silnice"
+Omnia: [generuje obrázek]
+User: "dej to auto na tu silnici"
+Omnia: ✅ Použije combine_images() s oběma URLs automaticky
+```
+
+### Test 3: Reference na dokumenty
+```
+User: [nahraje PDF dokument]
+Omnia: [analyzuje dokument]
+User: "co bylo v tom dokumentu o financích?"
+Omnia: ✅ Odpoví s vědomím že dokument existuje a byl analyzován
+```
+
+### Test 4: Reference na PDFs
+```
+User: "vytvoř mi PDF report o AI"
+Omnia: [vytvoří PDF]
+User: "udělej další podobný, ale o blockchain"
+Omnia: ✅ Použije podobnou strukturu jako předchozí PDF
+```
+
+### Test 5: Reference na Google zdroje
+```
+User: "najdi mi info o Gemini 2.0"
+Omnia: [hledá na Google, najde zdroje]
+User: "který z těch zdrojů je od Googlu?"
+Omnia: ✅ Odpoví s vědomím které zdroje našla
+```
+
+### Test 6: Kontinuita ("make another")
+```
+User: "vygeneruj obrázek lesa"
+Omnia: [generuje]
+User: "ještě jeden"
+Omnia: ✅ Vygeneruje další obrázek lesa (rozumí kontextu)
+```
+
+---
+
+## 📝 SOUBORY K ÚPRAVĚ
+
+### 1. Frontend - Metadata sending
+- **Soubor:** `/src/services/ai/gemini.service.js`
+- **Funkce:** `prepareGeminiMessages(messages)`
+- **Řádky:** 198-210
+- **Změny:** ~20 řádků
+
+### 2. Backend - Reference extraction
+- **Soubor:** `/api/gemini.js`
+- **Umístění:** Před `finalSystemInstruction` (cca řádek 106)
+- **Změny:** ~60 řádků (extraction logic)
+
+### 3. Backend - Prompt injection
+- **Soubor:** `/api/gemini.js`
+- **Umístění:** Na konec `finalSystemInstruction` (cca řádek 140+)
+- **Změny:** ~50 řádků (injection logic)
+
+---
+
+## ⏱️ ODHAD IMPLEMENTACE
+
+- **Krok 1 (Frontend):** 10 minut
+- **Krok 2 (Backend extraction):** 20 minut
+- **Krok 3 (Backend injection):** 15 minut
+- **Testování:** 30 minut
+- **Debugging + fixes:** 30 minut
+
+**Celkem:** ~1.5-2 hodiny čisté práce
+
+---
+
+## 🚀 LONG-TERM: Cloud Run + Live API
+
+Po úspěšné implementaci Reference System (Phase 1), následuje:
+
+### Phase 2: Cloud Run + Live API Migration
+
+**Proč:**
+- Live API podporuje multiple tools nativně (search + functions současně)
+- WebSocket bidirectional streaming (lepší UX)
+- Google Cloud kredity (23k Kč + $1000/rok) → Cloud Run je zadarmo
+
+**Jak:**
+1. Vytvořit `omnia-backend` repository
+2. Implementovat WebSocket server (Node.js + Express)
+3. Integrovat Live API místo Standard API
+4. Deploy na Cloud Run (GitHub auto-deploy)
+5. Update frontend pro WebSocket komunikaci
+
+**Odhad:** 3-5 dní práce
+
+**Benefit:**
+- Žádné workaroundy s dynamic tool selection
+- Nativní podpora mix search + functions
+- Profesionální architektura (separace backend/frontend)
+
+---
+
+## 📋 POZNÁMKY
+
+### Proč 20 zpráv pro extraction?
+- Rozumná velikost context window
+- Zachytí poslední konverzaci
+- Nepřetěžuje system prompt
+
+### Proč limity (10/5/3/8)?
+- Omezují velikost system promptu
+- Nejnovější assety jsou nejrelevantnější
+- Zachovává performance
+
+### Proč images z bot a documents z user?
+- Images generuje Omnia → bot messages
+- Documents uploaduje user → user messages
+- PDFs generuje Omnia → bot messages
+- Sources hledá Omnia → bot messages
+
+### Co s gs:// URLs?
+- Documents používají Google Cloud Storage
+- Backend (Cloud Functions) má přístup k GCS
+- Omnia může číst gs:// URLs přímo
+
+### Co s https:// URLs?
+- Images jsou na Supabase (public URLs)
+- Omnia může číst/editovat přímo
+- Žádná autentizace potřeba
+
+---
+
+## 🎯 SUCCESS CRITERIA
+
+Reference System je úspěšný když:
+
+✅ User může říct "uprav ten poslední obrázek" bez URL
+✅ User může říct "kombinuj ty 3 obrázky" bez URLs
+✅ User může říct "to co jsi našla na Google" a Omnia ví
+✅ User může říct "udělej ještě jeden PDF jako předtím"
+✅ System prompt obsahuje references automaticky
+✅ Omnia neříká "Potřebuji URL obrázku"
+✅ Kontinuita konverzace funguje přirozeně
+
+---
+
+**Status:** ⏳ Připraveno k implementaci
+**Next:** Implementovat po vyřešení Apple UI/UX issues

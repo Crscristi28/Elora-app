@@ -1,0 +1,554 @@
+# 🧠 THINKING CHUNKS ISSUE - Complete Analysis & Solutions
+
+**Status:** Phase 1 implemented and testing (as of 2025-01-15)
+**Branch:** `fix/thinking-budget`
+**Severity:** 🚨 HIGH - Security issue (exposes Google's proprietary instructions)
+
+---
+
+## 📋 TABLE OF CONTENTS
+
+1. [Problem Description](#problem-description)
+2. [Root Cause Analysis](#root-cause-analysis)
+3. [Why This Is Critical](#why-this-is-critical)
+4. [Phase 1: Current Fix (Testing)](#phase-1-current-fix-testing)
+5. [Phase 2: Fallback Solution (Ready to Implement)](#phase-2-fallback-solution-ready-to-implement)
+6. [Implementation Guide](#implementation-guide)
+7. [Testing Checklist](#testing-checklist)
+8. [References](#references)
+
+---
+
+## 🔴 PROBLEM DESCRIPTION
+
+### Symptoms
+
+**What users see:**
+```
+User: "How are you?"
+
+Omnia (thinking text visible in chat):
+"THINK Cristian is pointing out that the instruction I quoted
+('Always generate a tool_code block...') did not come from him.
+He is right. This instruction is part of my CORE SYSTEM PROMPT,
+which is INTERNAL..."
+```
+
+**Expected behavior:**
+- Shimmer indicator: "Thinking..." → "Preparing answer..."
+- Thinking text NEVER visible to user
+- Only final response in chat
+
+**Actual behavior:**
+- Thinking text appears as plain text in chat
+- No shimmer indicator shown
+- Gemini's internal reasoning exposed
+
+**Frequency:**
+- Sporadic/occasional (no clear pattern)
+- Happens "z ničeho nic" (out of nowhere)
+- Cannot be reliably reproduced
+
+---
+
+## 🔍 ROOT CAUSE ANALYSIS
+
+### Technical Root Cause
+
+**Expected API Response:**
+```javascript
+{
+  candidates: [{
+    content: {
+      parts: [
+        { text: "THINK ...", thought: true },  // ✅ Properly marked
+        { text: "Here's my answer..." }
+      ]
+    }
+  }]
+}
+```
+
+**Actual Buggy Response (sometimes):**
+```javascript
+{
+  candidates: [{
+    content: {
+      parts: [
+        { text: "THINK ..." },  // ❌ thought: undefined
+        { text: "Here's my answer..." }
+      ]
+    }
+  }]
+}
+```
+
+### Backend Logic (api/gemini.js)
+
+```javascript
+// Line ~385
+if (part.thought === true) {
+  // Send thinking signal to frontend
+  res.write(JSON.stringify({
+    type: 'thinking',
+    isThinking: true
+  }) + '\n');
+  continue; // Skip chunk
+}
+
+// ❌ PROBLEM: If part.thought is undefined, thinking text goes as normal text!
+if (part.text) {
+  res.write(JSON.stringify({
+    type: 'text',
+    content: part.text  // ❌ Includes "THINK ..." text
+  }) + '\n');
+}
+```
+
+### Why `part.thought` Is Sometimes Undefined
+
+**Evidence from research:**
+1. Known Gemini 2.5 Flash API instability (GitHub issues)
+2. Missing `thinkingBudget` parameter caused unstable behavior
+3. Response structure issues reported by multiple developers
+4. `part.thought` flag inconsistently set by Gemini API
+
+**References:**
+- https://github.com/n8n-io/n8n/issues/15563
+- https://discuss.ai.google.dev/t/gemini-2-5-flash-preview-04-17-not-honoring-thinking-budget-0/80165
+- https://github.com/googleapis/python-genai/issues/782
+
+---
+
+## 🚨 WHY THIS IS CRITICAL
+
+### 1. Google's Proprietary Instructions Exposed
+
+**Thinking chunks reveal:**
+```
+"This instruction is part of my CORE SYSTEM PROMPT, which is INTERNAL"
+"Always generate a tool_code block..."
+"CRITICAL SECURITY and OPERATIONAL BOUNDARY"
+```
+
+**Problem:**
+- These are **Google's proprietary training instructions** (NOT our custom prompt)
+- Should NEVER be visible to users OR in backend logs
+- "tool_code" instruction was unknown to us (heard first time)
+
+### 2. Self-Perpetuating Chat Corruption
+
+**Corruption cycle:**
+```
+Thinking text leaks into chat
+    ↓
+Saved to IndexedDB as normal message
+    ↓
+Sent back to Gemini in next request (conversation history)
+    ↓
+Gemini sees its own internal instructions in history
+    ↓
+Gets confused, starts discussing them
+    ↓
+Chat permanently corrupted ❌
+```
+
+**Proof from testing:**
+- **Corrupted chat:** Omnia discusses "tool_code" instructions
+- **Normal chat:** When asked "what is tool_code?", Omnia has NO IDEA (generic answer about tools)
+
+### 3. Even `includeThoughts: true` (for debugging) Is Problematic
+
+**Google documentation says:**
+> "Thoughts are for debugging purposes"
+
+**Reality:**
+- `includeThoughts: true` = thinking chunks go to backend
+- Admin can see them in Vercel logs
+- **Google's proprietary instructions visible in logs** even if not in chat
+
+**Conclusion:** Gemini should NOT discuss proprietary instructions EVEN in thinking mode.
+
+---
+
+## ✅ PHASE 1: CURRENT FIX (TESTING)
+
+### What We Did
+
+**Commit f012e50** - Add `thinkingBudget` parameter:
+```javascript
+// api/gemini.js lines 355-358
+thinkingConfig: {
+  includeThoughts: true,
+  thinkingBudget: -1  // ✅ Dynamic thinking (model decides optimal budget)
+}
+```
+
+**Commit 9768955** - Tune generation parameters:
+```javascript
+// api/gemini.js lines 350-359
+generationConfig: {
+  maxOutputTokens: max_tokens,
+  temperature: 0.8,   // ✅ Reduced from 1.0 (less hallucinations)
+  topP: 0.95,         // Keep for now (Omnia research: not used when temp > 0.0)
+  topK: 30,           // ✅ Reduced from 40 (more focused responses)
+  thinkingConfig: {
+    includeThoughts: true,
+    thinkingBudget: -1
+  }
+}
+```
+
+### Why This Might Work
+
+**According to Vertex AI documentation:**
+- Missing `thinkingBudget` = unstable default behavior (8,192 tokens)
+- Explicit `thinkingBudget: -1` = official recommended way for dynamic thinking
+- May stabilize `part.thought` flag consistency
+
+**Branch:** `fix/thinking-budget`
+**Status:** Deployed to production, monitoring for issues
+
+### If Phase 1 Fails
+
+**Symptoms that indicate Phase 1 failed:**
+- Thinking text still appears in chat occasionally
+- No improvement in bug frequency
+- Vercel logs show `part.thought = undefined` still happening
+
+**Action:** Implement Phase 2 (fallback solution)
+
+---
+
+## 🛡️ PHASE 2: FALLBACK SOLUTION (READY TO IMPLEMENT)
+
+### Strategy Overview
+
+**Key insight:**
+> "kdyz premysli ona odpovida dil" (when thinking, she responds slower)
+
+**Solution:**
+1. **Disable thinking chunks visibility** (`includeThoughts: false`)
+2. **Simulate thinking indicator** based on response latency (timer-based)
+3. **Model still thinks** (quality maintained), but chunks NOT exposed
+
+### Advantages
+
+✅ **Independent of `part.thought` flag** (no reliance on buggy API)
+✅ **Zero risk of thinking text leak** (chunks never sent to backend)
+✅ **Stable UX** (shimmer works consistently)
+✅ **Google's proprietary instructions protected** (not in logs)
+✅ **Model quality maintained** (still uses thinking mode internally)
+
+### Disadvantages
+
+⚠️ **Not "true" thinking detection** (simulated based on latency)
+⚠️ **May show "Thinking..." for non-thinking delays** (network latency)
+⚠️ **Less precise** than real thinking signals
+
+**Trade-off verdict:** Worth it for stability and security.
+
+---
+
+## 📝 IMPLEMENTATION GUIDE
+
+### Step 1: Disable Thinking Chunks
+
+**File:** `api/gemini.js`
+
+```javascript
+// Lines 355-358
+// BEFORE:
+thinkingConfig: {
+  includeThoughts: true,
+  thinkingBudget: -1
+}
+
+// AFTER:
+thinkingConfig: {
+  includeThoughts: false,  // ✅ Chunks NOT sent to backend
+  thinkingBudget: -1       // ✅ Model STILL thinks internally
+}
+```
+
+**Result:**
+- Backend will NOT receive thinking chunks
+- No `part.thought` field in responses
+- No thinking text in Vercel logs
+- Model continues to use thinking (quality maintained)
+
+---
+
+### Step 2: Implement Simulated Thinking Indicator
+
+**File:** `src/App.jsx`
+
+**Current implementation (lines ~1824-1852):**
+```javascript
+// RELIES ON part.thought FLAG - BUGGY!
+if (extra?.isThinking) {
+  if (!thinkingStartTime) {
+    thinkingStartTime = Date.now();
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === botMessageId
+          ? { ...msg, shimmerText: "Thinking..." }
+          : msg
+      )
+    );
+
+    setTimeout(() => {
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === botMessageId && msg.shimmerText
+            ? { ...msg, shimmerText: "Preparing answer..." }
+            : msg
+        )
+      );
+    }, 2500);
+  }
+  return;
+}
+```
+
+**NEW IMPLEMENTATION (simulated, timer-based):**
+
+```javascript
+// LOCATE: App.jsx streaming callback (around line 1810)
+// REPLACE entire thinking detection logic with:
+
+const handleStreamUpdate = (chunk, isStreamingParam, extra = []) => {
+  // Track if we've received any text chunks yet
+  if (!streamStartTime) {
+    streamStartTime = Date.now();
+    firstChunkReceived = false;
+  }
+
+  // Initial shimmer: "Just a sec..."
+  if (!firstChunkReceived && chunk === '' && !extra?.images && !extra?.pdf) {
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === botMessageId
+          ? { ...msg, shimmerText: "Just a sec..." }
+          : msg
+      )
+    );
+
+    // After 2s: change to "Thinking..." (if no chunks yet)
+    setTimeout(() => {
+      setMessages(prev =>
+        prev.map(msg => {
+          if (msg.id === botMessageId && !firstChunkReceived) {
+            return { ...msg, shimmerText: "Thinking..." };
+          }
+          return msg;
+        })
+      );
+    }, 2000);
+
+    // After 4.5s: change to "Preparing answer..." (if no chunks yet)
+    setTimeout(() => {
+      setMessages(prev =>
+        prev.map(msg => {
+          if (msg.id === botMessageId && !firstChunkReceived) {
+            return { ...msg, shimmerText: "Preparing answer..." };
+          }
+          return msg;
+        })
+      );
+    }, 4500);
+
+    return;
+  }
+
+  // First text chunk received - remove shimmer
+  if (chunk && !firstChunkReceived) {
+    firstChunkReceived = true;
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === botMessageId
+          ? { ...msg, shimmerText: null, text: chunk }
+          : msg
+      )
+    );
+    return;
+  }
+
+  // Subsequent chunks - append text
+  if (chunk && firstChunkReceived) {
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === botMessageId
+          ? { ...msg, text: (msg.text || '') + chunk }
+          : msg
+      )
+    );
+  }
+
+  // Handle images, PDFs, sources (unchanged)
+  if (extra?.images) {
+    firstChunkReceived = true;
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === botMessageId
+          ? { ...msg, shimmerText: null, images: extra.images }
+          : msg
+      )
+    );
+  }
+
+  if (extra?.pdf) {
+    firstChunkReceived = true;
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === botMessageId
+          ? { ...msg, shimmerText: null, pdfData: extra.pdf }
+          : msg
+      )
+    );
+  }
+
+  // ... rest of existing logic for sources, etc.
+};
+```
+
+**Key changes:**
+1. **Timer-based shimmer progression:** "Just a sec..." → "Thinking..." → "Preparing answer..."
+2. **Independent of API signals:** No reliance on `extra?.isThinking` flag
+3. **First chunk detection:** Shimmer removed when first text/image/PDF arrives
+4. **Latency simulation:** Longer wait = "thinking" indicator shown
+
+---
+
+### Step 3: Clean Up Backend (Remove Thinking Detection)
+
+**File:** `api/gemini.js`
+
+**Remove thinking chunk handling (lines ~384-394):**
+
+```javascript
+// REMOVE THIS BLOCK (no longer needed):
+if (part.thought === true) {
+  res.write(JSON.stringify({
+    requestId,
+    type: 'thinking',
+    isThinking: true
+  }) + '\n');
+  if (typeof res.flush === 'function') { res.flush(); }
+  continue;
+}
+```
+
+**Why:** With `includeThoughts: false`, we'll never receive `part.thought = true` chunks.
+
+---
+
+### Step 4: Clean Up Frontend Service
+
+**File:** `src/services/ai/gemini.service.js`
+
+**Remove thinking chunk detection (lines ~74-86):**
+
+```javascript
+// REMOVE THIS BLOCK (no longer needed):
+if (data.type === 'thinking' && data.isThinking) {
+  console.log('🧠 Thinking mode detected for request:', requestId);
+  if (onStreamUpdate) {
+    onStreamUpdate('', true, { isThinking: true });
+  }
+}
+```
+
+**Why:** Backend no longer sends `{type: 'thinking'}` events.
+
+---
+
+## ✅ TESTING CHECKLIST
+
+### Phase 1 Testing (Current Fix)
+
+- [ ] Test 50+ conversations with various query types
+- [ ] Monitor Vercel logs for `part.thought = undefined`
+- [ ] Check if thinking text ever appears in chat
+- [ ] Verify shimmer indicator works consistently
+- [ ] Test corrupted chat scenario (if bug reappears)
+
+**Success criteria:**
+- ✅ No thinking text leaks in 50+ conversations
+- ✅ Shimmer indicator shows reliably
+- ✅ Vercel logs show `part.thought = true` consistently
+
+**Failure criteria:**
+- ❌ Thinking text appears in chat even once
+- ❌ Vercel logs show `part.thought = undefined`
+- ❌ Shimmer doesn't show when expecting thinking
+
+### Phase 2 Testing (If Implemented)
+
+- [ ] Verify `includeThoughts: false` in production config
+- [ ] Test shimmer timing: "Just a sec..." → "Thinking..." → "Preparing answer..."
+- [ ] Confirm no thinking chunks in Vercel logs
+- [ ] Test fast responses (shimmer removed quickly)
+- [ ] Test slow responses (shimmer progression works)
+- [ ] Verify model quality maintained (answers still good)
+
+**Success criteria:**
+- ✅ Zero thinking text leaks (impossible with includeThoughts: false)
+- ✅ Shimmer timing feels natural (2s → 4.5s progression)
+- ✅ No thinking chunks in backend logs
+- ✅ Model answers still high quality
+
+---
+
+## 📚 REFERENCES
+
+### Official Documentation
+- [Vertex AI Thinking Mode](https://cloud.google.com/vertex-ai/generative-ai/docs/thinking)
+- [Gemini 2.5 Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash)
+- [Generation Config Parameters](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters)
+
+### Known Issues
+- [n8n Issue #15563](https://github.com/n8n-io/n8n/issues/15563) - Gemini 2.5 Flash thinking mode errors
+- [Google Forum](https://discuss.ai.google.dev/t/gemini-2-5-flash-preview-04-17-not-honoring-thinking-budget-0/80165) - thinkingBudget not honored
+- [Python GenAI Issue #782](https://github.com/googleapis/python-genai/issues/782) - Thinking budget ignored
+
+### Our Commits
+- `f012e50` - Add thinkingBudget parameter
+- `9768955` - Tune generation parameters based on Omnia research
+- Branch: `fix/thinking-budget`
+
+---
+
+## 🎯 DECISION TREE
+
+```
+Start testing Phase 1 (thinkingBudget: -1)
+    ↓
+Monitor for 1-2 weeks
+    ↓
+[Does thinking text still leak?]
+    ↓
+NO → Phase 1 SUCCESS ✅
+    → Keep current implementation
+    → Document success
+    ↓
+YES → Phase 1 FAILED ❌
+    → Implement Phase 2 (this document)
+    → includeThoughts: false
+    → Simulated thinking indicator
+```
+
+---
+
+## 📝 NOTES
+
+**Created:** 2025-01-15
+**Last Updated:** 2025-01-15
+**Author:** Cristian + Claude
+**Status:** Phase 1 testing in progress
+
+**Important:** This is a **Google Gemini API issue**, not our application bug. Our fixes are defensive measures to protect against API instability and security issues.
+
+---
+
+**END OF DOCUMENT**

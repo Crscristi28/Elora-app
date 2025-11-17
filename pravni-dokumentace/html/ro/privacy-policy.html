@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Politica de confidențialitate Omnia One AI</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/zasady-ochrany-soukromi.html">Čeština</a><a class="lang-option" href="../en/privacy-policy.html">English</a><span class="lang-option active">Română</span>
+      </div>
+    </div>
+  </nav>
+<h1>Politica de confidențialitate Omnia One AI</h1>
+<p>Data intrării în vigoare: 2 noiembrie 2025</p>
+<p>Această Politică explică ce date personale procesează aplicația Omnia One AI, în ce scop și cum sunt protejate. Operatorul de date este Cristian Bucioaca, contact: <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>.</p>
+<h2>1. Roluri conform GDPR</h2>
+<ul>
+<li>Furnizorul acționează ca operator pentru datele personale furnizate de utilizatori sau generate în timpul utilizării aplicației.</li>
+<li>Platformele terțe (Supabase, Google Cloud, OpenAI, Anthropic, ElevenLabs, Stripe) acționează ca persoane împuternicite sau operatori independenți, în funcție de serviciul prestat.</li>
+<li>Datele sunt partajate cu terți numai în măsura necesară pentru furnizarea Serviciului.</li>
+</ul>
+<h2>2. Categorii de date procesate</h2>
+<ol>
+<li><strong>Date de identificare și autentificare</strong>: e-mail, parolă criptată, ID intern de utilizator.</li>
+<li><strong>Informații de profil</strong>: nume afișat și pseudonim opțional, limbă preferată.</li>
+<li><strong>Conținut de chat și atașamente</strong>: mesaje text, metadate de sistem, fișiere încărcate (PDF, imagini, documente), rezultate generate de AI.</li>
+<li><strong>Metadate tehnice</strong>: ID dispozitiv, marcaje de timp, versiune browser, jurnale de erori.</li>
+<li><strong>Metrice de utilizare</strong>: număr de mesaje, tokeni consumați, activitate de abonare (dacă este cazul).</li>
+<li><strong>Date de plată</strong>: gestionate de Stripe; aplicația stochează doar identificatori de referință (customer_id, subscription_id).</li>
+<li><strong>Date vocale</strong>: fluxuri audio temporare pentru funcțiile speech-to-text sau text-to-speech; nu sunt stocate după procesare.</li>
+</ol>
+<h2>3. Scopuri și temeiuri legale</h2>
+<table>
+<thead>
+<tr>
+<th>Scop</th>
+<th>Categorii de date</th>
+<th>Temei legal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Furnizarea funcțiilor principale (login, chat, sincronizare)</td>
+<td>identificare, profil, conținut chat, tehnice</td>
+<td>executarea contractului (art. 6 alin. 1 lit. b) GDPR)</td>
+</tr>
+<tr>
+<td>Procesarea documentelor, generarea AI, funcții vocale</td>
+<td>conținut chat, atașamente, date vocale</td>
+<td>executarea contractului</td>
+</tr>
+<tr>
+<td>Securitate și prevenire fraudă (logare, verificare token)</td>
+<td>metadate tehnice</td>
+<td>interes legitim (securitate)</td>
+</tr>
+<tr>
+<td>Facturare și emitere facturi</td>
+<td>date de identificare, metrice, identificatori de plată</td>
+<td>executarea contractului / obligație legală</td>
+</tr>
+<tr>
+<td>Îmbunătățirea produsului (analiză agregată)</td>
+<td>date agregate de utilizare</td>
+<td>interes legitim</td>
+</tr>
+</tbody>
+</table>
+<h2>4. Partajarea datelor</h2>
+<ul>
+<li><strong>Supabase</strong> (centre din UE): autentificare, baze de date (profiles, chats, messages), Storage (attachments, generated-images, generated-pdfs-temp), realtime.</li>
+<li><strong>Google Cloud</strong> (regiuni din UE și SUA conform configurației): Vertex AI Gemini, Document AI, Text-to-Speech, Speech-to-Speech, Cloud Storage pentru procesare temporară. Credentialele sunt furnizate ca JSON în variabile de mediu pe server.</li>
+<li><strong>Anthropic</strong>: API Claude pentru răspunsuri generative și căutare web; se transmit doar contextul relevant și atașamentele acceptate.</li>
+<li><strong>OpenAI</strong>: GPT-4o pentru funcționalități suplimentare; se trimit instrucțiuni de sistem și părți din conversație.</li>
+<li><strong>ElevenLabs</strong>: streaming Text-to-Speech; se transmite doar textul curent.</li>
+<li><strong>Stripe</strong>: gestionarea abonamentelor; aplicația reține doar identificatori tokenizați.</li>
+<li><strong>Căutare Google / surse externe</strong>: la activarea căutării web, interogarea este trimisă fără date personale.</li>
+</ul>
+<p>Datele nu sunt vândute terților și nu sunt partajate pentru marketing-ul acestora.</p>
+<h2>5. Stocare și retenție</h2>
+<ul>
+<li><strong>Supabase</strong>: datele sunt păstrate până când Utilizatorul șterge chatul sau întregul cont. Înainte de ștergere, interfața explică efectele, solicită introducerea textului <code>DELETE</code> și confirmarea acțiunii în aplicație; nu se trimite e-mail suplimentar. După confirmare, scriptul <code>delete-account.js</code> apelează <code>supabase.auth.admin.deleteUser</code> și elimină profile, chat-uri, mesaje și fișierele asociate.</li>
+<li><strong>IndexedDB</strong> în browser: baza locală <code>OmniaChatDB</code> păstrează chaturile pentru acces offline. Utilizatorul poate șterge datele din setări sau la deconectare.</li>
+<li><strong>Stocare temporară</strong>: fișierele procesate prin Document AI pot fi păstrate temporar în Google Cloud Storage; după finalizare, fișierele și metadatele temporare sunt șterse.</li>
+<li><strong>Loguri server</strong>: păstrate până la 30 de zile pentru rezolvarea incidentelor, apoi anonimizate sau eliminate.</li>
+<li><strong>Facturi și evidențe de plată</strong>: păstrate de Stripe conform obligațiilor legale.</li>
+</ul>
+<h2>6. Măsuri de securitate</h2>
+<ul>
+<li>Toate tabelele Supabase au politici Row Level Security care impun <code>auth.uid()</code>.</li>
+<li>Obiectele din Storage folosesc coloana <code>owner</code>, astfel încât doar proprietarul poate șterge fișierele.</li>
+<li>Tokenurile sunt verificate pe backend folosind cheia de service Supabase.</li>
+<li>Parolele sunt criptate de Supabase conform standardelor actuale.</li>
+<li>Toate comunicările API sunt criptate (HTTPS).</li>
+<li>La ștergerea unui chat, aplicația elimină mai întâi fișierele din Storage (<code>deleteStorageFiles</code>), apoi șterge conversațiile și înregistrările de sincronizare.</li>
+<li>Accesul la credențialele critice (Google, OpenAI, Anthropic, ElevenLabs) este limitat la codul serverului.</li>
+</ul>
+<h2>7. Drepturile utilizatorilor</h2>
+<p>Utilizatorii beneficiază de următoarele drepturi conform GDPR:</p>
+<ol>
+<li><strong>Acces</strong>: solicitarea unei copii a datelor (disponibilă prin export din cont).</li>
+<li><strong>Rectificare</strong>: actualizarea informațiilor de profil (<code>ProfileService.saveProfile</code>).</li>
+<li><strong>Ștergere</strong>: eliminarea chat-urilor, atașamentelor sau a întregului cont din interfață.</li>
+<li><strong>Restricționare</strong>: dezactivarea sincronizării sau anularea abonamentelor.</li>
+<li><strong>Portabilitate</strong>: solicitarea exportului conversațiilor în format JSON/CSV.</li>
+<li><strong>Opoziție</strong>: contestarea prelucrărilor bazate pe interes legitim.</li>
+<li><strong>Plângere</strong>: depunerea unei sesizări la Autoritatea Națională de Supraveghere a Prelucrării Datelor (<a href="http://www.dataprotection.ro">www.dataprotection.ro</a>). <em>(Tradus din exemplul UOOU; adaptați după caz.)</em></li>
+</ol>
+<p>Cererile pot fi trimise la <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>. Furnizorul va răspunde în maximum 30 de zile.</p>
+<h2>8. Decizii automate</h2>
+<p>Răspunsurile AI sunt generate cu modele terțe pe baza instrucțiunilor și a istoricului conversației. Serviciul nu aplică decizii automatizate cu efecte juridice sau similare fără intervenție umană. Abonamentele și facturarea urmează reguli transparente.</p>
+<h2>9. Modificarea politicii</h2>
+<p>Documentul poate fi actualizat în funcție de schimbările tehnice sau legale. Utilizatorii vor fi informați despre modificările importante cu cel puțin 14 zile înainte prin e-mail sau notificări în aplicație. Versiunile vechi sunt arhivate și pot fi furnizate la cerere.</p>
+<hr>
+<p>Politica reflectă implementarea Omnia One AI la data de 2 noiembrie 2025.</p>
+  </main>
+</body>
+</html>

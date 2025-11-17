@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omnia One AI Service Summary</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/popis-sluzby-omnia.html">Čeština</a><span class="lang-option active">English</span><a class="lang-option" href="../ro/service-overview.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Omnia One AI Service Summary</h1>
+<p>This document summarises what Omnia One AI does, how it is designed and its main capabilities. It acts as a reference for product communication and supporting legal documentation.</p>
+<h2>1. Concept</h2>
+<p>Omnia One AI is a React + Vite application tailored for web and mobile experiences that delivers an intelligent assistant. Users can write, speak, upload files and receive responses from multiple AI models (Gemini, Claude, GPT-4o). The application supports several languages (CZ, EN, RO, DE and more) and combines text, document and visual workflows.</p>
+<h2>2. Core Modules</h2>
+<ul>
+<li><strong>Frontend (<code>src/</code>)</strong>: React components for chat, history, uploads, content generation and settings.</li>
+<li><strong>IndexedDB</strong>: local database <code>OmniaChatDB</code> for offline chat history.</li>
+<li><strong>Synchronisation</strong>: <code>chatSync.js</code> uploads changes to Supabase and receives realtime updates.</li>
+<li><strong>Backend API (<code>api/</code>)</strong>: serverless routes (Vercel) for AI calls, voice features, document processing and account deletion.</li>
+<li><strong>Supabase</strong>: authentication, database (<code>profiles</code>, <code>chats</code>, <code>messages</code>, <code>usage_metrics</code>, <code>subscriptions</code>) and Storage.</li>
+<li><strong>Paid services</strong>: Stripe for subscriptions, usage metrics for billing insights.</li>
+</ul>
+<h2>3. User Features</h2>
+<ol>
+<li><strong>AI chat</strong>: real-time responses across multiple providers.</li>
+<li><strong>Web search and citations</strong>: <code>api/claude-web-search.js</code> returns sources saved as <code>sources</code>.</li>
+<li><strong>Document handling</strong>: uploads via <code>api/process-document.js</code> supporting plain text and PDF (Google Document AI).</li>
+<li><strong>Image and PDF generation</strong>: <code>api/imagen.js</code>, <code>api/generate-pdf.js</code> store results in Storage.</li>
+<li><strong>Voice tools</strong>: speech recognition (<code>api/google-stt.js</code>) and speech synthesis (<code>api/google-tts.js</code>, <code>api/elevenlabs-tts.js</code>).</li>
+<li><strong>Account management</strong>: registration, login, password change, OTP recovery, profile settings, account deletion.</li>
+<li><strong>Content deletion</strong>: remove specific chats or the entire account including attachments.</li>
+<li><strong>Subscriptions (optional)</strong>: <code>subscriptions</code> table and Stripe integration handle paid plans.</li>
+</ol>
+<h2>4. Data Flows</h2>
+<ol>
+<li><strong>Login</strong>: user submits e-mail/password, Supabase returns a JWT used for subsequent API calls.</li>
+<li><strong>Message sending</strong>: the frontend assembles <code>messages</code>, selects the AI model and sends JSON to the corresponding endpoint (e.g. <code>/api/gemini</code>). The backend verifies the token, adds the role and streams the AI response.</li>
+<li><strong>File upload</strong>: <code>/api/process-document</code> handles either direct text processing or delegates to Google Document AI. Metadata are returned and can be stored in the chat.</li>
+<li><strong>Image generation</strong>: the AI returns base64; the backend saves it to Supabase Storage and responds with a public URL.</li>
+<li><strong>Synchronisation</strong>: <code>chatSyncService</code> compares local and cloud data, uploads new messages and mirrors deletions.</li>
+<li><strong>Deletion</strong>: <code>deleteChat</code> removes Storage files and related database entries; total account deletion uses <code>/api/delete-account</code>.</li>
+</ol>
+<h2>5. Security and Data Protection</h2>
+<ul>
+<li>Authentication and authorisation rely on Supabase with server-side service role keys.</li>
+<li>Row Level Security prevents access to other users' data.</li>
+<li>Storage buckets check ownership so only the file owner can delete assets.</li>
+<li>API routes enforce CORS, limit methods to POST/OPTIONS and validate inputs.</li>
+<li>Tokens and credentials are stored in environment variables (Vercel secret manager).</li>
+<li>Chat history lives locally and in Supabase; Users can remove it at any time.</li>
+<li>Logging is minimal and focused on technical diagnostics.</li>
+</ul>
+<h2>6. Third-Party Integrations</h2>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Purpose</th>
+<th>Data transferred</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Supabase</td>
+<td>authentication, database, storage, realtime</td>
+<td>user ID, chats, messages, files</td>
+</tr>
+<tr>
+<td>Google Cloud Vertex AI</td>
+<td>Gemini responses</td>
+<td>current conversation context, system prompts</td>
+</tr>
+<tr>
+<td>Anthropic Claude</td>
+<td>generative replies, web search</td>
+<td>message text, metadata, relevant attachments</td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td>GPT-4o responses</td>
+<td>conversation snippets and system instructions</td>
+</tr>
+<tr>
+<td>Google Document AI</td>
+<td>document parsing</td>
+<td>uploaded file content</td>
+</tr>
+<tr>
+<td>Google TTS/STT</td>
+<td>voice services</td>
+<td>audio stream or text</td>
+</tr>
+<tr>
+<td>ElevenLabs</td>
+<td>TTS fallback</td>
+<td>text to synthesise</td>
+</tr>
+<tr>
+<td>Stripe</td>
+<td>subscriptions</td>
+<td>user identifiers, plan, payment status</td>
+</tr>
+</tbody>
+</table>
+<h2>7. User Control</h2>
+<ul>
+<li>The UI offers controls to delete chats, clear all data and close the account.</li>
+<li>Deletion prompts confirm the action (<code>deleteConfirmation</code>).</li>
+<li>Upload history shows available attachments and download links.</li>
+<li>Profile settings store only optional fields (name, nickname).</li>
+<li>When Supabase credentials are missing, the app works offline without sending data to the cloud.</li>
+</ul>
+<h2>8. Technology and Deployment</h2>
+<ul>
+<li>Vite powers builds (<code>npm run build</code>), typical deployment is on Vercel.</li>
+<li>API routes use the Fetch API and stream responses using <code>application/x-ndjson</code>.</li>
+<li>PDF generation relies on Puppeteer (<code>api/generate-pdf.js</code>).</li>
+<li>The <code>docs/</code> directory contains deeper technical references (architecture, realtime, sync).</li>
+</ul>
+<h2>9. Limitations and Warnings</h2>
+<ul>
+<li>AI outputs can be inaccurate; documentation encourages verification.</li>
+<li>Third-party models may retain data briefly for diagnostics.</li>
+<li>Missing API keys result in immediate errors to avoid partial processing.</li>
+<li>File size limits apply (e.g. 10 MB for Google STT audio).</li>
+<li>Offline mode depends on browser security; no additional app-level encryption is applied.</li>
+</ul>
+<hr>
+<p>Prepared based on the project source code as of 2 November 2025.</p>
+  </main>
+</body>
+</html>

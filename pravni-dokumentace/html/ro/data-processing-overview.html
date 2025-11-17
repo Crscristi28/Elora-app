@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registrul prelucrărilor de date Omnia One AI</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/prehled-zpracovani-dat.html">Čeština</a><a class="lang-option" href="../en/data-processing-overview.html">English</a><span class="lang-option active">Română</span>
+      </div>
+    </div>
+  </nav>
+<h1>Registrul prelucrărilor de date Omnia One AI</h1>
+<p>Acest registru documentează activitățile de prelucrare efectuate de Omnia One AI, în conformitate cu articolul 30 GDPR. Informațiile se bazează pe implementarea curentă (schema Supabase, rutele API, serviciile front-end).</p>
+<h2>1. Set de date: Conturi de utilizator</h2>
+<ul>
+<li><strong>Descriere</strong>: Înregistrare prin Supabase Auth, cu intrări în <code>auth.users</code> și <code>profiles</code>.</li>
+<li><strong>Categorii de date</strong>: e-mail, parolă hash-uită, ID utilizator, rol, nume, pseudonim, localizare preferată, timestamp-uri.</li>
+<li><strong>Persoane vizate</strong>: utilizatori înregistrați.</li>
+<li><strong>Scop</strong>: creare și întreținere cont, personalizarea AI.</li>
+<li><strong>Temei legal</strong>: executarea contractului.</li>
+<li><strong>Destinatari</strong>: Supabase (UE).</li>
+<li><strong>Păstrare</strong>: pe durata existenței contului; ștergere via <code>delete-account.js</code>.</li>
+<li><strong>Securitate</strong>: RLS, transport criptat, parole hash-uite, cheia de service doar pe backend.</li>
+</ul>
+<h2>2. Set de date: Mesaje și context</h2>
+<ul>
+<li><strong>Descriere</strong>: Tabele <code>chats</code>, <code>messages</code>, baza locală IndexedDB <code>OmniaChatDB</code>.</li>
+<li><strong>Categorii de date</strong>: text, metadate (timestamp, sender, device_id, sources), atașamente (fișiere, imagini, PDF), răspunsuri AI.</li>
+<li><strong>Persoane vizate</strong>: utilizatori înregistrați.</li>
+<li><strong>Scop</strong>: furnizarea asistentului conversațional, păstrarea istoricului, continuitate.</li>
+<li><strong>Temei legal</strong>: executarea contractului.</li>
+<li><strong>Destinatari</strong>: Supabase, furnizorii AI (Google Vertex AI, Anthropic, OpenAI) pentru fragmentele relevante.</li>
+<li><strong>Păstrare</strong>: până la ștergerea chat-ului sau a contului; local poate fi eliminat oricând.</li>
+<li><strong>Ștergere</strong>: <code>deleteChat</code> elimină întâi fișierele din Storage, apoi înregistrările din IndexedDB și Supabase.</li>
+<li><strong>Securitate</strong>: RLS <code>auth.uid()</code>, verificarea proprietarului în Storage, stocare offline în browser.</li>
+</ul>
+<h2>3. Set de date: Fișiere încărcate și rezultate</h2>
+<ul>
+<li><strong>Descriere</strong>: bucket-uri Supabase Storage (attachments, generated-images, generated-pdfs-temp), Google Cloud Storage pe durata procesării documentelor, cache local.</li>
+<li><strong>Categorii de date</strong>: conținutul fișierelor încărcate, imagini generate de AI, PDF-uri, metadate (nume, dimensiune, cale, publicUrl).</li>
+<li><strong>Persoane vizate</strong>: utilizatori înregistrați.</li>
+<li><strong>Scop</strong>: analiză de documente, generare de resurse, descărcare de către utilizator.</li>
+<li><strong>Temei legal</strong>: executarea contractului; consimțământ implicit dacă sunt furnizate date sensibile.</li>
+<li><strong>Destinatari</strong>: Supabase Storage (UE), Google Document AI și Cloud Storage, ElevenLabs (pentru TTS).</li>
+<li><strong>Păstrare</strong>: până la ștergerea fișierului sau a contului; stocarea temporară se curăță după finalizare.</li>
+<li><strong>Securitate</strong>: RLS pe Storage (ștergere doar de către proprietar), HTTPS, validare MIME, ștergere fișiere înaintea ștergerii chat-ului.</li>
+</ul>
+<h2>4. Set de date: Comunicare vocală</h2>
+<ul>
+<li><strong>Descriere</strong>: audio trimis către <code>api/google-stt.js</code> și <code>api/elevenlabs-stt.js</code>, text trimis către <code>api/elevenlabs-tts.js</code> și <code>api/google-tts.js</code>.</li>
+<li><strong>Categorii de date</strong>: înregistrări audio scurte, transcrieri, audio generat.</li>
+<li><strong>Persoane vizate</strong>: utilizatori (și eventual alte persoane surprinse în înregistrare).</li>
+<li><strong>Scop</strong>: funcții speech-to-text și text-to-speech.</li>
+<li><strong>Temei legal</strong>: executarea contractului.</li>
+<li><strong>Destinatari</strong>: Google Speech-to-Text, ElevenLabs.</li>
+<li><strong>Păstrare</strong>: audio-ul nu este stocat după transcriere; fluxurile MP3 nu sunt arhivate.</li>
+<li><strong>Securitate</strong>: limite de dimensiune, sanitizare input, HTTPS.</li>
+</ul>
+<h2>5. Set de date: Metrice operaționale</h2>
+<ul>
+<li><strong>Descriere</strong>: tabela <code>usage_metrics</code>, log-uri locale, analize agregate.</li>
+<li><strong>Categorii de date</strong>: user_id, tip metrică (mesaje, tokeni), valoare, dată.</li>
+<li><strong>Persoane vizate</strong>: utilizatori înregistrați.</li>
+<li><strong>Scop</strong>: monitorizare, facturare, prevenirea abuzurilor.</li>
+<li><strong>Temei legal</strong>: interes legitim; executarea contractului pentru facturare.</li>
+<li><strong>Destinatari</strong>: Supabase (UE), Stripe (referințe de facturare).</li>
+<li><strong>Păstrare</strong>: până la 24 de luni sau până la ștergerea contului.</li>
+<li><strong>Securitate</strong>: RLS, acces doar cu sesiuni autentificate.</li>
+</ul>
+<h2>6. Set de date: Facturare</h2>
+<ul>
+<li><strong>Descriere</strong>: integrare Stripe, tabela <code>subscriptions</code>.</li>
+<li><strong>Categorii de date</strong>: user_id, plan_id, status, stripe_customer_id, stripe_subscription_id, perioade de facturare.</li>
+<li><strong>Persoane vizate</strong>: utilizatori cu abonamente active.</li>
+<li><strong>Scop</strong>: evidența plăților, emiterea facturilor, suport clienți.</li>
+<li><strong>Temei legal</strong>: executarea contractului; obligație legală (contabilitate).</li>
+<li><strong>Destinatari</strong>: Stripe (UE/SUA).</li>
+<li><strong>Păstrare</strong>: conform politicilor Stripe și cerințelor legale (minimum 5 ani).</li>
+<li><strong>Securitate</strong>: identificatori tokenizați; aplicația nu stochează date de card. Ștergerea se face prin dashboard-ul Stripe sau API.</li>
+</ul>
+<h2>7. Set de date: Suport și comunicare</h2>
+<ul>
+<li><strong>Descriere</strong>: corespondență prin e-mail, șabloane de notificare Supabase.</li>
+<li><strong>Categorii de date</strong>: e-mail, conținutul mesajului, detalii despre problemă.</li>
+<li><strong>Persoane vizate</strong>: utilizatori care contactează suportul.</li>
+<li><strong>Scop</strong>: răspuns la solicitări, rezolvarea incidentelor.</li>
+<li><strong>Temei legal</strong>: interes legitim.</li>
+<li><strong>Destinatari</strong>: furnizorul de e-mail al Omnia (<a href="http://omniaoneai.com">omniaoneai.com</a>).</li>
+<li><strong>Păstrare</strong>: pe durata soluționării + 12 luni pentru audit.</li>
+<li><strong>Securitate</strong>: acces limitat la Furnizor; transmitere e-mail TLS.</li>
+</ul>
+<h2>8. Gestionarea drepturilor persoanelor vizate</h2>
+<ul>
+<li>Solicitările sunt primite la <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>.</li>
+<li>Identitatea este verificată prin deținerea contului Supabase; pot fi cerute date suplimentare.</li>
+<li>Exportul include profil, listă de chat-uri, conținut, metrice și metadatele fișierelor.</li>
+<li>Ștergerea declanșează <code>delete-account.js</code> și verificarea manuală a bucket-urilor Storage.</li>
+<li>Răspunsul este furnizat în 30 de zile; pentru cazuri complexe, termenul poate fi prelungit cu 30 de zile și Utilizatorul este informat.</li>
+</ul>
+<hr>
+<p>Actualizat la 2 noiembrie 2025. Modificările ulterioare ale implementării vor fi reflectate în edițiile următoare.</p>
+  </main>
+</body>
+</html>

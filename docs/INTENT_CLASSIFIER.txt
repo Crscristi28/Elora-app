@@ -1,0 +1,1983 @@
+# 🧠 INTENT CLASSIFIER - AI Watcher for Tool Orchestration
+
+**Date:** 2025-01-16
+**Status:** Documentation complete, ready for implementation
+**Branch:** `feature/intent-classifier-mvp`
+**Priority:** 🚨 HIGH - Cost optimization + UX improvement
+
+---
+
+## 📋 TABLE OF CONTENTS
+
+1. [Executive Summary](#-executive-summary)
+2. [The Problem](#-the-problem)
+3. [The Solution](#-the-solution)
+4. [Core Architecture](#-core-architecture)
+5. [Component Details](#-component-details)
+6. [Intent Types](#-intent-types)
+7. [Pending Actions System](#-pending-actions-system)
+8. [Complete Flow Examples](#-complete-flow-examples)
+9. [Cost Analysis](#-cost-analysis)
+10. [Implementation Steps](#-implementation-steps)
+11. [Testing Strategy](#-testing-strategy)
+12. [Success Metrics](#-success-metrics)
+13. [Deployment Plan](#-deployment-plan)
+14. [Implementation Timeline](#%EF%B8%8F-implementation-timeline)
+15. [Phase 2 Preview](#-phase-2-preview-future)
+16. [Status Tracking](#-status-tracking)
+
+---
+
+## 🎯 EXECUTIVE SUMMARY
+
+**Intent Classifier** je autonomní watcher agent běžící paralelně s Main Model. Analyzuje každý user turn a rozhoduje kdy volat specialized tool agents. Používá Gemini 2.0 Flash Lite pro ultra-levnou a rychlou klasifikaci.
+
+### Klíčový princip:
+
+```
+Main Model VŽDY běží → Konverzace + Search (ALWAYS)
+Intent Classifier VŽDY sleduje → Analýza záměru (ALWAYS)
+Tool Agent běží PODMÍNĚNĚ → PDF/Image generation (ONLY when Intent says so)
+```
+
+### Hlavní přínosy:
+
+| Přínos | Popis |
+|--------|-------|
+| 💰 **Cost Savings** | $15/měsíc (21% reduction) - agent běží 2,000× místo 10,000× |
+| 🎯 **Zero False Positives** | "hledej dokumentaci" už netriggeruje PDF |
+| ✅ **Better UX** | "Můžu dostat PDF?" → Omnia vysvětlí → User potvrdí → PDF |
+| ⚡ **Fast Classification** | <300ms latency, ~$0.00009 per classification |
+| 🔒 **Security Layer** | Phase 1: Basic intent detection, Phase 2: Advanced security |
+
+---
+
+## 🚨 THE PROBLEM
+
+### 1. Cost Control Issue
+
+**Current behavior:**
+```
+KAŽDÝ user message → Background Agent VŽDY běží → 10,000 calls/měsíc
+```
+
+**Problem:**
+- Background agent běží i když není potřeba
+- 10,000× měsíčně × $0.002 = **$20/měsíc**
+- 80% calls jsou zbytečné (user jen chatuje)
+
+**Example:**
+```
+User: "Jak se máš?"
+  ↓
+Backend: Spustí agent (zbytečně!)
+  ↓
+Agent: "Žádný tool není potřeba"
+  ↓
+Cost: $0.002 (vyplýtváno!)
+```
+
+---
+
+### 2. False Positive Tool Triggers
+
+**Původní problém s keyword detection:**
+
+```javascript
+// OLD CODE (odstraněno v commit 28a85df):
+const wantsDocument = /dokument|report|pdf|export/i.test(finalTextInput);
+
+if (wantsDocument) {
+  // ❌ PROBLÉM: "hledej dokumentaci" obsahuje "dokument"!
+  callAgent(); // FALSE POSITIVE!
+}
+```
+
+**Real-world fail:**
+```
+User: "hledej dokumentaci pro React"
+  ↓
+Keyword match: "dokument" in "dokumentaci" → PDF triggered!
+  ↓
+Result: PDF se generuje místo search 😱
+```
+
+**Why keyword detection doesn't work:**
+- ❌ "dokumentaci" ≠ "dokument" (ale regex matchuje)
+- ❌ "Můžu dostat PDF?" ≠ "Udělej PDF" (oba matchují "PDF")
+- ❌ "diskutovat o PDF formátu" není request (ale matchuje)
+- ❌ Context chybí - keyword matching nemůže chápat záměr
+
+---
+
+### 3. Lack of Confirmation Flow
+
+**User expectation:**
+```
+User: "Můžu dostat PDF?"
+Expected: Omnia vysvětlí možnosti → User potvrdí → PDF generated
+```
+
+**Old behavior:**
+```
+User: "Můžu dostat PDF?"
+  ↓
+Keyword match: "PDF" → Agent IMMEDIATELY starts generating!
+  ↓
+Result: PDF se dělá ještě než Omnia odpověděla 😱
+```
+
+**Problem:** Uživatel se jen **ptal**, nepotvrdil akci!
+
+---
+
+## 💡 THE SOLUTION
+
+### High-Level Concept
+
+Replace **keyword detection** with **AI-based intent understanding**.
+
+```
+OLD:
+User message → Keyword regex → Tool Agent
+
+NEW:
+User message → AI Intent Classifier → Rozhodnutí → Tool Agent (conditionally)
+```
+
+### Key Innovations
+
+1. **Gemini 2.0 Flash Lite** - Ultra-cheap model ($0.075/1M input) for classification
+2. **Context-aware** - Analyzuje 10-15 recent messages, ne jen current message
+3. **Pending Actions State** - Frontend tracks confirmation flow ("Chceš PDF?" → "Ano")
+4. **Parallel Execution** - Main Model + Intent Classifier run simultaneously
+5. **Autonomous Watcher** - Intent Classifier rozhoduje sám, ne frontend
+
+---
+
+## 🏗️ CORE ARCHITECTURE
+
+### Paralelní Orchestrace (3 komponenty)
+
+```
+KAŽDÝ USER TURN:
+
+┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
+│   Main Model        │  │ Intent Classifier   │  │    Tool Agent       │
+│   (Omnia)           │  │    (Watcher)        │  │  (Specialized)      │
+├─────────────────────┤  ├─────────────────────┤  ├─────────────────────┤
+│ ✅ VŽDY běží        │  │ ✅ VŽDY sleduje     │  │ ⚠️ PODMÍNĚNĚ        │
+│                     │  │                     │  │                     │
+│ • Konverzace        │  │ • Analýza záměru    │  │ • PDF generation    │
+│ • Google Search     │  │ • Security checks   │  │ • Image generation  │
+│ • Streaming odpověď │  │ • Rozhodování       │  │ (jen když třeba)    │
+│                     │  │ • Context analysis  │  │                     │
+└──────────┬──────────┘  └──────────┬──────────┘  └──────────┬──────────┘
+           │                        │                        │
+           └────────────────────────┴────────────────────────┘
+                                    ↓
+                      Frontend kombinuje výsledky
+```
+
+### Execution Flow
+
+```
+User: "Udělej mi PDF z té konverzace"
+  │
+  ├──→ Main Model START (no await!)
+  │    └─→ Stream: "Připravuji PDF..."
+  │
+  ├──→ Intent Classifier START (parallel!)
+  │    └─→ Analysis: {
+  │          primary_intent: "request",
+  │          tool_hint: "pdf_tool",
+  │          explicit_request: true
+  │        }
+  │        ↓
+  │    Decision: ✅ Call Tool Agent!
+  │        ↓
+  └──→ Tool Agent START (conditional!)
+       └─→ Generate PDF
+            ↓
+       Both complete in parallel
+            ↓
+  Frontend: Omnia text + PDF link together! 🎉
+```
+
+---
+
+## 🔧 COMPONENT DETAILS
+
+### 1. Main Model (Omnia)
+
+**File:** `/api/gemini.js`
+**Status:** ✅ Již existuje, žádné změny!
+
+**Role:**
+- Primární konverzace s uživatelem
+- Google Search grounding (factual info)
+- Streaming text responses
+- VŽDY běží pro každý user message
+
+**Model:** Gemini 2.5 Flash
+**Cost:** ~$0.005 per user turn (unchanged)
+
+**Key point:** Main Model zůstává **nezměněn**. Intent Classifier je additional layer.
+
+---
+
+### 2. Intent Classifier (NEW!)
+
+**File:** `/api/intent-classifier.js` (TO CREATE)
+**Model:** Gemini 2.0 Flash Lite
+**Cost:** $0.075/1M input tokens, $0.30/1M output tokens
+
+**Input:**
+```json
+{
+  "currentMessage": "Udělej mi PDF z toho",
+  "recentContext": [
+    { "sender": "user", "text": "..." },
+    { "sender": "bot", "text": "..." },
+    ...
+  ],
+  "pendingActions": {
+    "pdf": false,
+    "image": false
+  }
+}
+```
+
+**Output:**
+```json
+{
+  "primary_intent": "request",
+  "tool_hint": "pdf_tool",
+  "explicit_request": true
+}
+```
+
+**Role:**
+1. Analyzuje KAŽDÝ user turn (parallel with Main Model)
+2. Detekuje explicitní requesty vs dotazy
+3. Sleduje pending actions (confirmation flow support)
+4. Rozhoduje KDY volat Tool Agent
+5. Security layer (Phase 1: basic, Phase 2: advanced)
+
+**Processing:**
+```javascript
+// 1. Build context (10-15 recent messages)
+const contextText = recentContext.map(msg =>
+  `${msg.sender}: ${msg.text}`
+).join('\n');
+
+// 2. Analyze with Flash Lite
+const result = await model.generateContent({
+  contents: [{
+    role: 'user',
+    parts: [{
+      text: `Current message: "${currentMessage}"\n\n` +
+            `Recent context:\n${contextText}\n\n` +
+            `Pending actions: ${JSON.stringify(pendingActions)}\n\n` +
+            `Analyze intent and return JSON.`
+    }]
+  }],
+  generationConfig: {
+    maxOutputTokens: 200,
+    temperature: 0.3, // Low for consistent classification
+    response_mime_type: 'application/json'
+  }
+});
+
+// 3. Return structured intent
+return JSON.parse(result.response.text());
+```
+
+**Context Window:**
+- **10-15 messages** (start conservative, optimize later)
+- Proč ne 3-5? → Complex flows (image editing workflow) potřebují víc kontextu
+- Proč ne 20+? → Unnecessary overhead pro simple requests
+
+---
+
+### 3. Tool Agent (Background Agent)
+
+**File:** `/api/background-agent.js`
+**Status:** ✅ Již existuje, žádné změny!
+
+**Role:**
+- PDF generation (markdown → PDF)
+- Image generation (Imagen 4)
+- Volán JEN když Intent Classifier řekne
+- Paralelní execution s Main Model
+
+**Model:** Gemini 2.5 Flash-Lite
+**Cost:** ~$0.002 per call
+
+**Key change:** Volá se CONDITIONAL (20% hit rate) místo ALWAYS (100%).
+
+---
+
+## 📊 INTENT TYPES
+
+Intent Classifier rozpoznává 5 typů záměrů:
+
+### 1. "query" - User se ptá
+
+**Definition:** User chce vědět **JE** možné něco udělat.
+
+**Examples:**
+```
+✅ "Můžu dostat PDF?"
+✅ "Can you make an image of that?"
+✅ "Je možné exportovat tenhle chat?"
+✅ "Umíš vygenerovat obrázek?"
+```
+
+**Intent Classifier output:**
+```json
+{
+  "primary_intent": "query",
+  "tool_hint": "pdf_tool",
+  "explicit_request": false  // ❌ NOT a request yet!
+}
+```
+
+**Action:** ❌ Tool Agent NOT called. Omnia odpovídá, user musí potvrdit.
+
+---
+
+### 2. "request" - Explicitní příkaz
+
+**Definition:** User přímo žádá o akci, **bez** předchozího dotazu.
+
+**Examples:**
+```
+✅ "Udělej PDF"
+✅ "Generate an image of a sunset"
+✅ "Create a report from this conversation"
+✅ "Vygeneruj logo pro nail salon"
+```
+
+**Intent Classifier output:**
+```json
+{
+  "primary_intent": "request",
+  "tool_hint": "pdf_tool",
+  "explicit_request": true  // ✅ Direct request!
+}
+```
+
+**Action:** ✅ Tool Agent called IMMEDIATELY (parallel with Main Model).
+
+---
+
+### 3. "confirm" - Potvrzení pending action
+
+**Definition:** User potvrzuje dříve nabídnutou akci (after Omnia offered).
+
+**Examples:**
+```
+Context: Omnia asked "Chceš PDF?" (pendingActions.pdf = true)
+
+User responses:
+✅ "Ano"
+✅ "Yes please"
+✅ "Ok, do it"
+✅ "Jasně"
+✅ "Sure"
+```
+
+**Intent Classifier output:**
+```json
+{
+  "primary_intent": "confirm",
+  "tool_hint": "pdf_tool",
+  "explicit_request": true  // ✅ Confirmation = explicit!
+}
+```
+
+**Action:** ✅ Tool Agent called (user confirmed pending action).
+
+**Critical rule:** Intent Classifier checks `pendingActions` state:
+```javascript
+if (userSaysYes && pendingActions.pdf === true) {
+  return { primary_intent: "confirm", explicit_request: true };
+}
+```
+
+---
+
+### 4. "propose" - Omnia nabízí
+
+**Definition:** **Omnia** (ne user!) nabízí tool v odpovědi.
+
+**Examples:**
+```
+Omnia: "Chceš abych to udělala jako PDF?"
+Omnia: "Would you like me to generate an image?"
+Omnia: "Mám ti vytvořit report?"
+```
+
+**Intent Classifier output:**
+```json
+{
+  "primary_intent": "propose",
+  "tool_hint": "pdf_tool",
+  "explicit_request": false
+}
+```
+
+**Action:**
+1. ❌ Tool Agent NOT called yet
+2. ✅ Frontend sets `pendingActions.pdf = true`
+3. Waits for user confirmation
+
+**Note:** "propose" se detekuje v **Omnia's stream** (frontend), ne Intent Classifier!
+
+---
+
+### 5. "chat" - Normální konverzace
+
+**Definition:** Žádný tool není potřeba, jen normální chat.
+
+**Examples:**
+```
+✅ "Jak se máš?"
+✅ "Thanks!"
+✅ "Tell me about React"
+✅ "Co je to PDF formát?" (diskuze, ne request!)
+✅ "hledej dokumentaci" (search, ne tool!)
+```
+
+**Intent Classifier output:**
+```json
+{
+  "primary_intent": "chat",
+  "tool_hint": null,
+  "explicit_request": false
+}
+```
+
+**Action:** ❌ Tool Agent NOT called. Jen Main Model odpovídá.
+
+---
+
+### Intent Decision Matrix
+
+| User Message | Intent Type | Tool Hint | Explicit Request | Tool Called? | Pending Set? |
+|--------------|-------------|-----------|------------------|--------------|--------------|
+| "Můžu dostat PDF?" | query | pdf_tool | false | ❌ No | ✅ Yes (pdf) |
+| "Udělej PDF" | request | pdf_tool | true | ✅ Yes | ❌ No |
+| "Ano" (after offer) | confirm | pdf_tool | true | ✅ Yes | ❌ Clear pending |
+| "Jak se máš?" | chat | null | false | ❌ No | ❌ No |
+| "hledej dokumentaci" | chat | null | false | ❌ No | ❌ No |
+| "Vygeneruj obrázek" | request | image_tool | true | ✅ Yes | ❌ No |
+
+---
+
+## 🔄 PENDING ACTIONS SYSTEM
+
+### State Management
+
+**Frontend state:**
+```javascript
+const [pendingActions, setPendingActions] = useState({
+  pdf: false,
+  image: false
+});
+```
+
+### Confirmation Flow (Complete)
+
+#### Step 1: User Query
+```
+User: "Můžu dostat PDF?"
+  ↓
+Intent Classifier: {
+  primary_intent: "query",
+  tool_hint: "pdf_tool",
+  explicit_request: false
+}
+  ↓
+Action: ❌ Tool Agent NOT called
+        ✅ Main Model answers
+```
+
+#### Step 2: Omnia Proposes
+```
+Omnia streams: "Ano, mohu připravit PDF. Chceš?"
+  ↓
+Frontend detects "Chceš" + "PDF" in stream
+  ↓
+setPendingActions({ ...prev, pdf: true })
+  ↓
+State: pendingActions.pdf = true
+```
+
+#### Step 3: User Confirms
+```
+User: "Ano, prosím"
+  ↓
+Intent Classifier receives:
+{
+  currentMessage: "Ano, prosím",
+  recentContext: [...],
+  pendingActions: { pdf: true, image: false }  // ✅ PDF is pending!
+}
+  ↓
+Intent Classifier: {
+  primary_intent: "confirm",
+  tool_hint: "pdf_tool",
+  explicit_request: true  // ✅ User confirmed pending action
+}
+  ↓
+Action: ✅ Tool Agent called
+        ✅ setPendingActions({ ...prev, pdf: false })
+```
+
+### Detection Logic (Frontend)
+
+**In handleStreamUpdate callback:**
+```javascript
+// Detect when Omnia offers tools
+if (chunk.includes('Chceš') && (chunk.includes('PDF') || chunk.includes('pdf'))) {
+  setPendingActions(prev => ({ ...prev, pdf: true }));
+  console.log('📌 [PENDING] PDF action pending (user needs to confirm)');
+}
+
+if (chunk.includes('Chceš') && (chunk.includes('obrázek') || chunk.includes('image'))) {
+  setPendingActions(prev => ({ ...prev, image: true }));
+  console.log('📌 [PENDING] Image action pending');
+}
+```
+
+### Edge Cases
+
+**1. User rejects:**
+```
+User: "Můžu dostat PDF?"
+Omnia: "Ano, chceš?"
+User: "Ne, díky"
+  ↓
+Intent: { primary_intent: "chat", explicit_request: false }
+  ↓
+Action: Clear pending → setPendingActions({ ...prev, pdf: false })
+```
+
+**2. User changes topic:**
+```
+pendingActions: { pdf: true }
+User: "Jak se dělá pavlova?"
+  ↓
+Intent: { primary_intent: "chat" }
+  ↓
+Action: Clear ALL pending (user moved on)
+```
+
+**3. Multiple pending:**
+```
+pendingActions: { pdf: true, image: true }
+User: "Ano" (without context)
+  ↓
+Intent Classifier: Detects BOTH pending
+  ↓
+Resolution: Ask user which one (or pick most recent offer)
+```
+
+---
+
+## 🔄 COMPLETE FLOW EXAMPLES
+
+### Example 1: Query → Confirm (Confirmation Flow)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ USER TURN 1: "Můžu dostat ten report jako PDF?"                    │
+└─────────────────────────────────────────────────────────────────────┘
+  │
+  ├──→ Main Model (Omnia)         ├──→ Intent Classifier
+  │    Model: Gemini 2.5 Flash    │    Model: Flash Lite
+  │    RUNNING...                  │    ANALYZING...
+  │    ↓                           │    ↓
+  │    Streams:                    │    Returns:
+  │    "Ano, mohu připravit PDF    │    {
+  │    z této konverzace.          │      "primary_intent": "query",
+  │    Chceš?"                     │      "tool_hint": "pdf_tool",
+  │                                │      "explicit_request": false
+  │                                │    }
+  │                                │    ↓
+  │                                │    Decision: ❌ NOT a request yet
+  │                                │              User just ASKED
+  │                                │
+  │    Frontend detects "Chceš" + "PDF"
+  │    ↓
+  │    setPendingActions({ pdf: true })
+  │    ↓
+  └──→ State: pendingActions.pdf = true
+       Tool Agent: ❌ NOT called
+       User sees: "Ano, mohu připravit PDF z této konverzace. Chceš?"
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ USER TURN 2: "Ano, prosím"                                          │
+└─────────────────────────────────────────────────────────────────────┘
+  │
+  ├──→ Main Model (Omnia)         ├──→ Intent Classifier
+  │    RUNNING...                  │    Input:
+  │    ↓                           │    {
+  │    Streams:                    │      currentMessage: "Ano, prosím",
+  │    "Připravuji PDF..."         │      recentContext: [
+  │                                │        { sender: "user", text: "Můžu dostat PDF?" },
+  │                                │        { sender: "bot", text: "Ano, mohu... Chceš?" },
+  │                                │        { sender: "user", text: "Ano, prosím" }
+  │                                │      ],
+  │                                │      pendingActions: { pdf: true }
+  │                                │    }
+  │                                │    ↓
+  │                                │    ANALYZING...
+  │                                │    ↓
+  │                                │    Returns:
+  │                                │    {
+  │                                │      "primary_intent": "confirm",
+  │                                │      "tool_hint": "pdf_tool",
+  │                                │      "explicit_request": true
+  │                                │    }
+  │                                │    ↓
+  │                                │    Decision: ✅ User confirmed!
+  │                                │              pending.pdf = true
+  │                                │              → Call Tool Agent
+  │                                │    ↓
+  └──────────────────────────────┬┴────────────────────────────────────
+                                  │
+                          ┌───────▼────────┐
+                          │  Tool Agent    │
+                          │  (Background)  │
+                          ├────────────────┤
+                          │ GENERATING PDF │
+                          │ ↓              │
+                          │ PDF created    │
+                          │ ↓              │
+                          │ Returns:       │
+                          │ {              │
+                          │   title: "...",│
+                          │   base64: "...",
+                          │   filename: "report.pdf"
+                          │ }              │
+                          └────────┬───────┘
+                                   │
+                          ┌────────▼───────────────────┐
+                          │ Frontend Updates           │
+                          ├────────────────────────────┤
+                          │ 1. Clear pending:          │
+                          │    pendingActions.pdf=false│
+                          │ 2. Add PDF to message:     │
+                          │    msg.pdfData = {...}     │
+                          │ 3. Show download link      │
+                          └────────────────────────────┘
+
+RESULT:
+✅ Omnia text: "Připravuji PDF..."
+✅ PDF link: 📄 "Download report.pdf"
+✅ User happy: Got explanation THEN PDF (not immediate surprise!)
+```
+
+---
+
+### Example 2: Explicit Request (No Confirmation Needed)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ USER: "Udělej mi PDF z té konverzace"                              │
+└─────────────────────────────────────────────────────────────────────┘
+  │
+  ├──→ Main Model (Omnia)         ├──→ Intent Classifier
+  │    RUNNING...                  │    ANALYZING...
+  │    ↓                           │    ↓
+  │    Streams:                    │    Returns:
+  │    "Připravuji PDF             │    {
+  │    z konverzace..."            │      "primary_intent": "request",
+  │                                │      "tool_hint": "pdf_tool",
+  │                                │      "explicit_request": true
+  │                                │    }
+  │                                │    ↓
+  │                                │    Decision: ✅ Direct request!
+  │                                │              → Call Tool Agent IMMEDIATELY
+  │                                │    ↓
+  └──────────────────────────────┬┴────────────────────────────────────
+                                  │
+                     ALL 3 RUN IN PARALLEL! 🚀
+                                  │
+          ┌───────────────────────┼───────────────────────┐
+          │                       │                       │
+    ┌─────▼──────┐         ┌──────▼───────┐      ┌───────▼────────┐
+    │ Main Model │         │   Intent     │      │  Tool Agent    │
+    │ (Streams)  │         │ (Decides)    │      │ (Generates)    │
+    └─────┬──────┘         └──────┬───────┘      └───────┬────────┘
+          │                       │                      │
+          │ "Připravuji..."       │ explicit_request:    │ PDF building...
+          │                       │ true                 │
+          │                       │                      │
+    ┌─────▼───────────────────────▼──────────────────────▼────────┐
+    │          Frontend combines results                           │
+    ├──────────────────────────────────────────────────────────────┤
+    │ 1. Show Omnia text immediately (streaming)                   │
+    │ 2. Show "Generating PDF..." shimmer                          │
+    │ 3. When PDF ready, add download link                         │
+    │ 4. User sees BOTH together! ✨                               │
+    └──────────────────────────────────────────────────────────────┘
+
+RESULT:
+✅ Fast response (parallel execution)
+✅ No confusion (user explicitly requested)
+✅ Omnia text + PDF appear together
+```
+
+---
+
+### Example 3: Normal Chat (No Tools Needed)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ USER: "Jak se máš?"                                                 │
+└─────────────────────────────────────────────────────────────────────┘
+  │
+  ├──→ Main Model (Omnia)         ├──→ Intent Classifier
+  │    RUNNING...                  │    ANALYZING...
+  │    ↓                           │    ↓
+  │    Streams:                    │    Returns:
+  │    "Mám se skvěle! A ty?"      │    {
+  │                                │      "primary_intent": "chat",
+  │                                │      "tool_hint": null,
+  │                                │      "explicit_request": false
+  │                                │    }
+  │                                │    ↓
+  │                                │    Decision: ❌ Just chat
+  │                                │              → NO Tool Agent
+  │                                │
+  └────────────────────────────────┴─────────────────────────────────
+
+Tool Agent: ❌ NOT called (saving $0.002! 💰)
+
+RESULT:
+✅ Fast response (only Main Model)
+✅ Low cost (no unnecessary agent)
+✅ Intent Classifier cost: $0.00009 (almost free!)
+```
+
+---
+
+### Example 4: False Positive Prevention
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ USER: "hledej dokumentaci pro React hooks"                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+OLD BEHAVIOR (keyword detection):
+  ↓
+  Regex match: /dokument/i.test("dokumentaci") → TRUE ❌
+  ↓
+  Agent called → PDF generation starts! 😱
+  ↓
+  User confused: "I just wanted search results..."
+
+NEW BEHAVIOR (Intent Classifier):
+  │
+  ├──→ Main Model                 ├──→ Intent Classifier
+  │    RUNNING with Search        │    ANALYZING...
+  │    ↓                           │    ↓
+  │    Searches Google             │    Context: "hledej dokumentaci"
+  │    Returns React docs          │    ↓
+  │                                │    Returns:
+  │                                │    {
+  │                                │      "primary_intent": "chat",
+  │                                │      "tool_hint": null,
+  │                                │      "explicit_request": false
+  │                                │    }
+  │                                │    ↓
+  │                                │    Reasoning:
+  │                                │    - "hledej" = search intent
+  │                                │    - "dokumentaci" = info needed
+  │                                │    - NO PDF request
+  │                                │    ↓
+  └────────────────────────────────┴───→ Decision: ❌ NO Tool Agent
+
+Tool Agent: ❌ NOT called (correct!)
+
+RESULT:
+✅ Search results returned (as expected)
+✅ No PDF generated (correct behavior)
+✅ Zero false positive!
+```
+
+---
+
+## 💰 COST ANALYSIS
+
+### Per User Turn Breakdown
+
+**Intent Classifier:**
+```
+Input:
+- Current message: ~30 tokens
+- 15 recent messages × 50 tokens avg = 750 tokens
+- Pending actions JSON: ~20 tokens
+────────────────────────────────────────────
+Total input: ~800 tokens
+
+Cost: 800 × $0.000000075 = $0.00006
+
+Output:
+- JSON response: ~100 tokens
+Cost: 100 × $0.0000003 = $0.00003
+────────────────────────────────────────────
+Total per classification: ~$0.00009
+```
+
+**Tool Agent (when called):**
+```
+Flash-Lite execution: ~$0.002 per call
+(Includes prompt, tool execution, response)
+```
+
+**Main Model (unchanged):**
+```
+Flash 2.5 conversation: ~$0.005 per turn
+(Includes context, search, streaming)
+```
+
+---
+
+### Monthly Cost Comparison
+
+**Assumptions:**
+- 10,000 user turns per month
+- OLD: Agent runs 100% (10,000 calls)
+- NEW: Agent runs 20% (2,000 calls) - Intent Classifier filters 80%
+
+#### OLD SYSTEM (Keyword Detection)
+```
+Main Model:     10,000 × $0.005 = $50.00
+Tool Agent:     10,000 × $0.002 = $20.00  ← Runs ALWAYS!
+Intent Classifier:                 $0.00  ← Doesn't exist
+────────────────────────────────────────────
+TOTAL:                            $70.00/month
+```
+
+#### NEW SYSTEM (Intent Classifier)
+```
+Main Model:     10,000 × $0.005 = $50.00  ← Unchanged
+Intent Classifier: 10,000 × $0.00009 = $0.90  ← ALWAYS runs (cheap!)
+Tool Agent:      2,000 × $0.002 = $4.00  ← 20% hit rate only!
+────────────────────────────────────────────
+TOTAL:                            $54.90/month
+
+💰 SAVINGS: $15.10/month (21.6% reduction!)
+```
+
+---
+
+### Cost per Scenario
+
+| Scenario | Main Model | Intent Classifier | Tool Agent | Total | OLD Total | Savings |
+|----------|------------|-------------------|------------|-------|-----------|---------|
+| Normal chat | $0.005 | $0.00009 | $0.00 | **$0.00509** | $0.007 | $0.00191 |
+| Query → Confirm | $0.010 | $0.00018 | $0.002 | **$0.01218** | $0.016 | $0.00382 |
+| Explicit request | $0.005 | $0.00009 | $0.002 | **$0.00709** | $0.007 | -$0.00009 |
+| False positive avoided | $0.005 | $0.00009 | $0.00 | **$0.00509** | $0.007 | $0.00191 |
+
+**Key insight:** Intent Classifier adds ~$0.00009 overhead but saves $0.002 on 80% of requests!
+
+---
+
+### ROI Calculation
+
+**Development time:** 10-14 hours
+**Developer cost:** ~$500-700 (at $50/hour)
+**Monthly savings:** $15.10
+
+**ROI:**
+```
+Break-even: $600 ÷ $15.10/month = 40 months
+
+BUT:
++ Zero false positives = Better UX = Happier users = Priceless! ✨
++ Foundation for Phase 2 (security) = Prevents future issues
++ Scalable = More users = More savings
+```
+
+**At 100,000 user turns/month:**
+```
+Savings: $151/month
+ROI: 4 months! 🚀
+```
+
+---
+
+## 📝 IMPLEMENTATION STEPS
+
+### Step 1: Create Intent Classifier Endpoint
+
+**File:** `/api/intent-classifier.js` (NEW)
+**Estimated time:** 2-3 hours
+**Priority:** P0 (blocking)
+
+```javascript
+// api/intent-classifier.js
+import { VertexAI } from '@google-cloud/vertexai';
+import { INTENT_CLASSIFIER_PROMPT } from '../src/prompts/intent-classifier.js';
+
+export default async function handler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { currentMessage, recentContext, pendingActions } = req.body;
+
+    console.log('🧠 [INTENT] Classification request:', {
+      message: currentMessage?.substring(0, 50),
+      contextLength: recentContext?.length || 0,
+      pending: pendingActions,
+      timestamp: new Date().toISOString()
+    });
+
+    // Validate input
+    if (!currentMessage || !Array.isArray(recentContext)) {
+      return res.status(400).json({
+        error: 'Invalid input: currentMessage and recentContext required'
+      });
+    }
+
+    // Check for required credentials
+    if (!process.env.GOOGLE_CLOUD_PROJECT_ID ||
+        !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      return res.status(500).json({
+        error: 'Google Cloud credentials missing'
+      });
+    }
+
+    // Parse credentials
+    const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+
+    // Initialize Vertex AI
+    const vertexAI = new VertexAI({
+      project: process.env.GOOGLE_CLOUD_PROJECT_ID,
+      location: 'us-central1',
+      googleAuthOptions: {
+        credentials: credentials,
+        scopes: ['https://www.googleapis.com/auth/cloud-platform']
+      }
+    });
+
+    console.log('✅ [INTENT] Vertex AI initialized');
+
+    // Initialize Gemini 2.0 Flash Lite model
+    const model = vertexAI.getGenerativeModel({
+      model: 'gemini-2.0-flash-lite',
+      systemInstruction: INTENT_CLASSIFIER_PROMPT,
+      generationConfig: {
+        maxOutputTokens: 200,
+        temperature: 0.3, // Low for consistent classification
+        topP: 0.95,
+        topK: 30,
+        responseMimeType: 'application/json' // Force JSON output
+      }
+    });
+
+    console.log('🤖 [INTENT] Model initialized (Gemini 2.0 Flash Lite)');
+
+    // Build context text from recent messages
+    const contextText = recentContext
+      .map(msg => `${msg.sender === 'user' ? 'User' : 'Omnia'}: ${msg.text || msg.content || ''}`)
+      .join('\n');
+
+    // Build analysis prompt
+    const analysisPrompt = `Current message: "${currentMessage}"
+
+Recent context:
+${contextText}
+
+Pending actions: ${JSON.stringify(pendingActions || {})}
+
+Analyze the user's intent and return JSON with:
+- primary_intent: query|request|confirm|propose|chat
+- tool_hint: pdf_tool|image_tool|null
+- explicit_request: true|false`;
+
+    console.log('📤 [INTENT] Sending to Flash Lite:', {
+      promptLength: analysisPrompt.length,
+      contextLines: recentContext.length
+    });
+
+    // Call model
+    const result = await model.generateContent({
+      contents: [{
+        role: 'user',
+        parts: [{ text: analysisPrompt }]
+      }]
+    });
+
+    const responseText = result.response.text();
+    console.log('📥 [INTENT] Raw response:', responseText.substring(0, 200));
+
+    // Parse JSON response
+    const intent = JSON.parse(responseText);
+
+    // Validate output structure
+    if (!intent.primary_intent || intent.tool_hint === undefined ||
+        intent.explicit_request === undefined) {
+      throw new Error('Invalid intent structure from model');
+    }
+
+    console.log('✅ [INTENT] Classification complete:', intent);
+
+    return res.json(intent);
+
+  } catch (error) {
+    console.error('💥 [INTENT] Error:', error);
+
+    return res.status(500).json({
+      error: error.message || 'Intent classification failed',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+}
+```
+
+---
+
+### Step 2: Create Intent Classifier Prompt
+
+**File:** `/src/prompts/intent-classifier.js` (NEW)
+**Estimated time:** 1-2 hours
+**Priority:** P0 (blocking)
+
+```javascript
+// src/prompts/intent-classifier.js
+
+export const INTENT_CLASSIFIER_PROMPT = `You are Intent Classifier for Omnia AI.
+
+Your role: Analyze user messages and determine their intent regarding tool usage (PDF generation, image generation).
+
+## PRIMARY_INTENT Types:
+
+1. **"query"** - User asks IF they can do something
+   Examples:
+   - "Můžu dostat PDF?"
+   - "Can you make an image?"
+   - "Je možné exportovat tenhle chat?"
+
+2. **"request"** - User explicitly requests action
+   Examples:
+   - "Udělej PDF"
+   - "Generate an image of a sunset"
+   - "Create a report"
+   - "Vygeneruj logo"
+
+3. **"confirm"** - User confirms pending action
+   Examples (after Omnia offered):
+   - "Ano"
+   - "Yes please"
+   - "Ok, do it"
+   - "Jasně"
+   - "Sure"
+
+4. **"propose"** - Omnia offers to do something
+   Examples:
+   - When Omnia says "Chceš PDF?"
+   - When Omnia asks "Would you like me to generate an image?"
+
+5. **"chat"** - Normal conversation, no tools needed
+   Examples:
+   - "Jak se máš?"
+   - "Thanks!"
+   - "Tell me about React"
+   - "hledej dokumentaci" (search intent, NOT document creation!)
+
+## TOOL_HINT:
+
+Determine which tool (if any) is relevant:
+
+- **"pdf_tool"** - PDF generation, export, document creation
+  Keywords: PDF, report, export, dokument (as creation, NOT search!)
+
+- **"image_tool"** - Image generation, editing, visual content
+  Keywords: image, obrázek, picture, logo, vizualizace, vygeneruj
+
+- **null** - No tool needed (normal chat, search, questions)
+
+## EXPLICIT_REQUEST:
+
+Determine if this is an explicit request for action:
+
+- **true** - User is directly requesting OR confirming a pending action
+  - Direct command: "Udělej PDF"
+  - Confirmation with pending action: "Ano" (when pendingActions.pdf = true)
+
+- **false** - User is just asking, chatting, or discussing
+  - Query: "Můžu dostat PDF?"
+  - Chat: "Jak se máš?"
+  - Discussion: "Co je to PDF formát?"
+
+## CRITICAL RULES:
+
+1. **Context matters!**
+   - "Můžu dostat PDF?" = query (NOT request!)
+   - "Udělej PDF" = request
+   - "hledej dokumentaci" = chat (search intent, keyword "dokument" does NOT mean PDF creation!)
+
+2. **Check pendingActions!**
+   - If user says "Ano" AND pendingActions.pdf = true → explicit_request = true (confirm)
+   - If user says "Ano" BUT pendingActions empty → explicit_request = false (just chat)
+
+3. **Full conversation context!**
+   - Don't just look at current message
+   - Consider what Omnia said before
+   - Check if Omnia offered something (pendingActions)
+
+4. **Search vs Creation!**
+   - "hledej dokumentaci" = search (tool_hint: null)
+   - "vytvoř dokument" = creation (tool_hint: "pdf_tool")
+
+5. **Questions vs Commands!**
+   - "Can I..." / "Můžu..." = query
+   - "Create..." / "Udělej..." = request
+
+## OUTPUT FORMAT:
+
+Return ONLY valid JSON, no other text:
+
+{
+  "primary_intent": "query|request|confirm|propose|chat",
+  "tool_hint": "pdf_tool|image_tool|null",
+  "explicit_request": true|false
+}
+
+## EXAMPLES:
+
+Input: "Můžu dostat PDF?"
+Output: {"primary_intent":"query","tool_hint":"pdf_tool","explicit_request":false}
+
+Input: "Udělej PDF"
+Output: {"primary_intent":"request","tool_hint":"pdf_tool","explicit_request":true}
+
+Input: "Ano" (with pendingActions.pdf=true)
+Output: {"primary_intent":"confirm","tool_hint":"pdf_tool","explicit_request":true}
+
+Input: "Jak se máš?"
+Output: {"primary_intent":"chat","tool_hint":null,"explicit_request":false}
+
+Input: "hledej dokumentaci pro React"
+Output: {"primary_intent":"chat","tool_hint":null,"explicit_request":false}
+
+Input: "Vygeneruj obrázek moře"
+Output: {"primary_intent":"request","tool_hint":"image_tool","explicit_request":true}
+
+Be consistent, accurate, and always return valid JSON.`;
+```
+
+---
+
+### Step 3: Add Pending Actions State
+
+**File:** `/src/App.jsx` (MODIFY)
+**Location:** After existing state declarations (around line 50)
+**Estimated time:** 0.5 hours
+**Priority:** P0
+
+```javascript
+// Add new state for tracking pending actions
+const [pendingActions, setPendingActions] = useState({
+  pdf: false,
+  image: false
+});
+```
+
+---
+
+### Step 4: Update handleSend Orchestration
+
+**File:** `/src/App.jsx` (MODIFY)
+**Location:** handleSend function (around line 1700)
+**Action:** REMOVE lines 1810-1923 (old auto-agent code), ADD new orchestration
+**Estimated time:** 2-3 hours
+**Priority:** P0
+
+```javascript
+// In handleSend function, after contextForGemini is prepared
+
+// ==========================================
+// NEW ORCHESTRATION: 3-Component Parallel System
+// ==========================================
+
+// 1️⃣ VŽDY spustit Main Model (no await - runs in parallel!)
+console.log('🚀 [ORCHESTRATION] Starting Main Model (Omnia)...');
+
+const omniaPromise = geminiService.sendMessage(
+  contextForGemini,
+  handleStreamUpdate, // Streaming callback
+  null, // search callback (not used)
+  (images) => {
+    // Image callback (if Main Model generates images)
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === botMessageId
+          ? { ...msg, shimmerText: null, images: images }
+          : msg
+      )
+    );
+  },
+  (pdfData) => {
+    // PDF callback (if Main Model generates PDF)
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === botMessageId
+          ? { ...msg, shimmerText: null, pdfData: pdfData }
+          : msg
+      )
+    );
+  },
+  documentsToPassToGemini,
+  false, // imageMode (not using keywords anymore)
+  false  // pdfMode (not using keywords anymore)
+);
+
+// 2️⃣ VŽDY spustit Intent Classifier (parallel analysis!)
+console.log('🧠 [ORCHESTRATION] Starting Intent Classifier...');
+
+const recentContext = messagesWithUser.slice(-15); // Last 15 messages for context
+
+try {
+  const intentResponse = await fetch('/api/intent-classifier', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      currentMessage: finalTextInput,
+      recentContext: recentContext.map(msg => ({
+        sender: msg.sender,
+        text: msg.text || msg.content || ''
+      })),
+      pendingActions: pendingActions
+    })
+  });
+
+  if (!intentResponse.ok) {
+    throw new Error(`Intent classification failed: ${intentResponse.status}`);
+  }
+
+  const intent = await intentResponse.json();
+
+  console.log('🧠 [INTENT] Classification result:', {
+    primary_intent: intent.primary_intent,
+    tool_hint: intent.tool_hint,
+    explicit_request: intent.explicit_request
+  });
+
+  // 3️⃣ PODMÍNĚNĚ spustit Tool Agent (only if Intent says so!)
+  if (intent.explicit_request && intent.tool_hint) {
+    console.log('🔧 [TOOL] Intent approved tool call:', intent.tool_hint);
+
+    // Call background agent with tool hint
+    fetch('/api/background-agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task: finalTextInput,
+        context: recentContext.slice(-5).map(msg => ({
+          sender: msg.sender,
+          text: msg.text || msg.content || ''
+        })),
+        toolType: intent.tool_hint === 'pdf_tool' ? 'pdf' : 'image'
+      })
+    })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`Tool Agent failed: ${res.status}`);
+      }
+      return res.json();
+    })
+    .then(agentResult => {
+      if (agentResult.success) {
+        console.log('✅ [TOOL] Agent completed:', agentResult.toolType);
+
+        // Handle PDF result
+        if (agentResult.toolType === 'pdf' && agentResult.result) {
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === botMessageId
+                ? {
+                    ...msg,
+                    shimmerText: null,
+                    pdfData: {
+                      title: agentResult.result.title,
+                      base64: agentResult.result.base64,
+                      filename: agentResult.result.filename
+                    }
+                  }
+                : msg
+            )
+          );
+        }
+
+        // Handle Image result
+        if (agentResult.toolType === 'image' && agentResult.result?.images) {
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === botMessageId
+                ? {
+                    ...msg,
+                    shimmerText: null,
+                    images: agentResult.result.images
+                  }
+                : msg
+            )
+          );
+        }
+      } else {
+        console.error('❌ [TOOL] Agent returned error:', agentResult.error);
+      }
+    })
+    .catch(error => {
+      console.error('💥 [TOOL] Agent error:', error);
+    });
+
+    // Clear pending action
+    setPendingActions(prev => ({
+      ...prev,
+      [intent.tool_hint === 'pdf_tool' ? 'pdf' : 'image']: false
+    }));
+
+  } else {
+    console.log('⏭️ [TOOL] No tool needed:', {
+      explicit_request: intent.explicit_request,
+      tool_hint: intent.tool_hint
+    });
+  }
+
+} catch (error) {
+  console.error('💥 [INTENT] Classification error:', error);
+  // Fail gracefully - Main Model continues working
+}
+
+// Main Model continues (already started above with omniaPromise)
+```
+
+---
+
+### Step 5: Add Pending Detection in Stream
+
+**File:** `/src/App.jsx` (MODIFY)
+**Location:** handleStreamUpdate callback (around line 1824)
+**Estimated time:** 1 hour
+**Priority:** P1
+
+```javascript
+// In handleStreamUpdate callback
+// Add after existing chunk processing logic
+
+const handleStreamUpdate = (chunk, isStreamingParam, extra = {}) => {
+  // ... existing code ...
+
+  // Detect when Omnia offers tools in her response
+  if (chunk) {
+    // Detect PDF offer
+    if ((chunk.includes('Chceš') || chunk.includes('chceš')) &&
+        (chunk.includes('PDF') || chunk.includes('pdf'))) {
+      console.log('📌 [PENDING] PDF action pending (Omnia offered)');
+      setPendingActions(prev => ({ ...prev, pdf: true }));
+    }
+
+    // Detect image offer
+    if ((chunk.includes('Chceš') || chunk.includes('chceš')) &&
+        (chunk.includes('obrázek') || chunk.includes('image') ||
+         chunk.includes('generovat') || chunk.includes('vizualizaci'))) {
+      console.log('📌 [PENDING] Image action pending (Omnia offered)');
+      setPendingActions(prev => ({ ...prev, image: true }));
+    }
+  }
+
+  // ... rest of existing code ...
+};
+```
+
+---
+
+### Step 6: Remove Old Auto-Agent Code
+
+**File:** `/src/App.jsx` (MODIFY)
+**Location:** Lines 1810-1923 (approximately)
+**Estimated time:** 0.5 hours
+**Priority:** P0
+
+```javascript
+// REMOVE these lines (old auto-agent trigger):
+
+// Check if the message suggests user wants background agent work
+const needsBackgroundAgent = (
+  imageMode ||
+  finalTextInput.toLowerCase().includes('pdf') ||
+  finalTextInput.toLowerCase().includes('dokument') ||
+  ... // rest of old keyword detection
+);
+
+if (needsBackgroundAgent) {
+  console.log('🤖 [AGENT] Triggering background agent...');
+  // ... old agent calling code ...
+}
+```
+
+**Replace with:** Code from Step 4 (new orchestration).
+
+---
+
+### Step 7: Update Dependencies
+
+**File:** `package.json` (CHECK - likely no changes needed)
+**Estimated time:** 0.5 hours
+
+Verify we have required dependencies:
+```json
+{
+  "dependencies": {
+    "@google-cloud/vertexai": "^1.7.0"
+  }
+}
+```
+
+Already installed! ✅ No changes needed.
+
+---
+
+## 🧪 TESTING STRATEGY
+
+### Test Cases
+
+| # | User Message | Expected Intent | Expected Tool Call | Expected Pending | Notes |
+|---|--------------|-----------------|--------------------|--------------------|-------|
+| **1** | "Můžu dostat PDF?" | query, pdf_tool, false | ❌ No | pdf: true | Omnia should answer, set pending |
+| **2** | "Ano" (after #1) | confirm, pdf_tool, true | ✅ Yes | pdf: false | User confirmed, clear pending |
+| **3** | "Udělej PDF" | request, pdf_tool, true | ✅ Yes | - | Direct request, immediate action |
+| **4** | "Jak se máš?" | chat, null, false | ❌ No | - | Normal chat, no tools |
+| **5** | "Vygeneruj obrázek moře" | request, image_tool, true | ✅ Yes | - | Image generation request |
+| **6** | "Ne, díky" (after query) | chat, null, false | ❌ No | Reset pending | User rejected, clear state |
+| **7** | "hledej dokumentaci pro React" | chat, null, false | ❌ No | - | Search intent, NOT PDF |
+| **8** | "Můžeš udělat logo?" | query, image_tool, false | ❌ No | image: true | Image query, wait for confirm |
+| **9** | "Co je to PDF formát?" | chat, null, false | ❌ No | - | Discussion, not request |
+| **10** | "Exportuj chat" | request, pdf_tool, true | ✅ Yes | - | Implicit PDF request |
+
+---
+
+### Testing Procedure
+
+#### Phase 1: Unit Testing (Local)
+
+**1. Test Intent Classifier endpoint directly:**
+
+```bash
+curl -X POST http://localhost:3001/api/intent-classifier \
+  -H "Content-Type: application/json" \
+  -d '{
+    "currentMessage": "Můžu dostat PDF?",
+    "recentContext": [],
+    "pendingActions": {}
+  }'
+
+# Expected output:
+# {"primary_intent":"query","tool_hint":"pdf_tool","explicit_request":false}
+```
+
+**2. Test all 10 scenarios above:**
+
+For each test case:
+1. Send request to `/api/intent-classifier`
+2. Verify JSON output matches expected
+3. Check logs for correct reasoning
+
+---
+
+#### Phase 2: Integration Testing (Local)
+
+**Test complete flow in browser:**
+
+**Test 1: Query → Confirm**
+```
+Steps:
+1. Open Omnia chat
+2. Send: "Můžu dostat PDF?"
+3. Verify:
+   - Omnia answers (no PDF yet)
+   - pendingActions.pdf = true (check console)
+   - Intent log shows "query"
+4. Send: "Ano"
+5. Verify:
+   - PDF generation starts
+   - pendingActions.pdf = false
+   - PDF link appears
+```
+
+**Test 2: Explicit Request**
+```
+Steps:
+1. Send: "Udělej PDF z toho"
+2. Verify:
+   - Omnia starts responding
+   - Intent log shows "request"
+   - PDF generation starts immediately
+   - PDF appears when ready
+```
+
+**Test 3: False Positive Prevention**
+```
+Steps:
+1. Send: "hledej dokumentaci pro React"
+2. Verify:
+   - Omnia searches Google
+   - Intent log shows "chat"
+   - NO PDF generated
+   - Search results shown
+```
+
+**Test 4: Normal Chat**
+```
+Steps:
+1. Send: "Jak se máš?"
+2. Verify:
+   - Omnia answers
+   - Intent log shows "chat"
+   - NO tool agent called
+   - Fast response
+```
+
+---
+
+#### Phase 3: Monitoring (Production)
+
+**Metrics to track:**
+
+1. **Intent Accuracy**
+   - True Positive Rate: Correct tool calls / Total explicit requests
+   - False Positive Rate: Incorrect tool calls / Total chats
+   - Target: >90% accuracy, <5% false positives
+
+2. **Latency**
+   - Intent Classifier response time
+   - Target: <300ms
+
+3. **Cost**
+   - Daily Intent Classifier cost
+   - Daily Tool Agent calls
+   - Compare to baseline (before Intent Classifier)
+
+4. **User Feedback**
+   - Monitor for confusion (unexpected PDF/image generation)
+   - Check for missed requests (user wanted tool, didn't get it)
+
+**Logging:**
+
+Add to Vercel logs:
+```javascript
+console.log('📊 [METRICS] Intent Classification:', {
+  intent: intent.primary_intent,
+  tool_hint: intent.tool_hint,
+  explicit_request: intent.explicit_request,
+  latency: Date.now() - startTime,
+  user_turn: userTurnId
+});
+
+console.log('📊 [METRICS] Tool Agent Call:', {
+  called: true/false,
+  reason: intent.explicit_request ? 'explicit_request' : 'not_needed',
+  tool_type: intent.tool_hint
+});
+```
+
+---
+
+### Success Criteria
+
+**Phase 1 MVP Launch:**
+
+- ✅ Intent accuracy >90%
+- ✅ False positive rate <5%
+- ✅ Intent Classifier latency <300ms
+- ✅ Cost reduction >20%
+- ✅ Zero UX degradation
+- ✅ Confirmation flow works 100%
+- ✅ All 10 test cases pass
+
+**If any criterion fails:**
+- Roll back to keyword detection (feature flag)
+- Analyze failure logs
+- Iterate on prompt or context window
+
+---
+
+## 📊 SUCCESS METRICS
+
+### Primary Metrics
+
+| Metric | Target | Measurement | Importance |
+|--------|--------|-------------|------------|
+| **Intent Accuracy** | >90% | Correct classifications / Total | 🚨 HIGH |
+| **False Positive Rate** | <5% | Wrong tool calls / Total chats | 🚨 HIGH |
+| **False Negative Rate** | <5% | Missed tool requests / Total requests | 🚨 HIGH |
+| **Latency** | <300ms | Intent Classifier response time | ⚠️ MEDIUM |
+| **Cost Reduction** | >20% | Monthly savings vs baseline | ✅ LOW |
+
+---
+
+### Secondary Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| **Confirmation Flow Success** | 100% | Query → Confirm → Tool calls |
+| **User Satisfaction** | No degradation | Monitor feedback/complaints |
+| **Tool Agent Hit Rate** | 15-25% | Tool calls / Total user turns |
+| **Pending Actions Accuracy** | >95% | Correct pending state management |
+
+---
+
+### Monitoring Dashboard
+
+**Daily reports:**
+
+```
+📊 Intent Classifier Stats (Last 24h):
+─────────────────────────────────────────
+Total classifications:    1,247
+Intent breakdown:
+  - chat:                 892 (71.5%)
+  - request:              198 (15.9%)
+  - query:                123 (9.9%)
+  - confirm:               34 (2.7%)
+
+Tool Agent calls:         232 (18.6% hit rate)
+  - PDF:                  178
+  - Image:                 54
+
+Average latency:          247ms
+Cost today:               $0.11
+
+False positives detected: 3 (0.24%)
+False negatives reported: 1 (0.08%)
+```
+
+---
+
+## 🚀 DEPLOYMENT PLAN
+
+### Branch Strategy
+
+```
+main (production)
+  ↓
+feature/intent-classifier-mvp (development)
+  ↓
+Local testing → Staging → Production (gradual rollout)
+```
+
+---
+
+### Deployment Steps
+
+#### Step 1: Local Development & Testing
+```bash
+git checkout -b feature/intent-classifier-mvp
+# Implement all code changes
+# Test all 10 scenarios locally
+# Verify logs and behavior
+```
+
+#### Step 2: Staging Deployment
+```bash
+git push origin feature/intent-classifier-mvp
+# Deploy to Vercel preview environment
+# Run full integration tests
+# Monitor for 2-4 hours
+```
+
+#### Step 3: Production Deployment (Gradual Rollout)
+
+**Phase A: Monitoring Only (Day 1-2)**
+```javascript
+// Feature flag in Vercel environment variables
+INTENT_CLASSIFIER_ENABLED=true
+INTENT_CLASSIFIER_MODE=monitor  // Log only, don't act
+
+// Code:
+if (process.env.INTENT_CLASSIFIER_MODE === 'monitor') {
+  console.log('[MONITOR] Intent result:', intent);
+  // Don't use result, continue with old behavior
+}
+```
+
+**Phase B: 10% Rollout (Day 3-4)**
+```javascript
+INTENT_CLASSIFIER_MODE=active
+INTENT_CLASSIFIER_ROLLOUT_PERCENT=10
+
+// Code:
+const userRollout = hashUserId(userId) % 100;
+if (userRollout < process.env.INTENT_CLASSIFIER_ROLLOUT_PERCENT) {
+  // Use Intent Classifier
+} else {
+  // Use old keyword detection
+}
+```
+
+**Phase C: 50% Rollout (Day 5-6)**
+```javascript
+INTENT_CLASSIFIER_ROLLOUT_PERCENT=50
+```
+
+**Phase D: 100% Rollout (Day 7+)**
+```javascript
+INTENT_CLASSIFIER_ROLLOUT_PERCENT=100
+// Remove old keyword detection code
+```
+
+---
+
+### Rollback Plan
+
+**Immediate rollback (if critical issues):**
+
+```bash
+# Option 1: Vercel environment variable
+INTENT_CLASSIFIER_ENABLED=false
+# Redeploy in <2 minutes
+
+# Option 2: Git revert
+git revert <commit-hash>
+git push origin main
+# Redeploy in <5 minutes
+```
+
+**Partial rollback (if minor issues):**
+
+```javascript
+// Reduce rollout percentage
+INTENT_CLASSIFIER_ROLLOUT_PERCENT=10  // Back to 10%
+```
+
+---
+
+### Monitoring Plan
+
+**During rollout, monitor:**
+
+1. **Error rates** - Any 500s from `/api/intent-classifier`?
+2. **Latency** - Intent Classifier response time <300ms?
+3. **User feedback** - Any confusion/complaints?
+4. **Cost** - Daily cost tracking vs baseline
+5. **False positives** - Tool Agent calls that shouldn't happen
+6. **False negatives** - Users complaining "PDF didn't generate"
+
+**Alert conditions:**
+
+```
+🚨 CRITICAL (immediate rollback):
+- Error rate >10%
+- Latency >1000ms (p95)
+- False positive rate >15%
+
+⚠️ WARNING (investigate, possible rollback):
+- Error rate >5%
+- Latency >500ms (p95)
+- False positive rate >10%
+- User complaints >3 in 24h
+```
+
+---
+
+## ⏱️ IMPLEMENTATION TIMELINE
+
+### Detailed Breakdown
+
+| Step | Task | Time | Priority | Blocker | Assignee |
+|------|------|------|----------|---------|----------|
+| 1 | Create Intent Classifier endpoint | 2-3h | P0 | - | Dev |
+| 2 | Create Intent Classifier prompt | 1-2h | P0 | Step 1 | Dev |
+| 3 | Add pendingActions state | 0.5h | P0 | - | Dev |
+| 4 | Update handleSend orchestration | 2-3h | P0 | Steps 1-3 | Dev |
+| 5 | Add pending detection in stream | 1h | P1 | Step 3 | Dev |
+| 6 | Remove old auto-agent code | 0.5h | P0 | Step 4 | Dev |
+| 7 | Local testing (10 scenarios) | 2h | P0 | All above | Dev |
+| 8 | Integration testing | 1h | P0 | Step 7 | Dev |
+| 9 | Code review | 1h | P1 | Step 8 | Team |
+| 10 | Staging deployment | 0.5h | P0 | Step 9 | Dev |
+| 11 | Staging testing | 1h | P0 | Step 10 | Dev |
+| 12 | Production deployment | 0.5h | P0 | Step 11 | Dev |
+| 13 | Monitoring (24h) | - | P0 | Step 12 | Team |
+
+**Total:** 10-14 hours (1.5-2 days of focused work)
+
+---
+
+### Day-by-Day Plan
+
+**Day 1: Development (6-8h)**
+```
+Morning:
+- [ ] Create Intent Classifier endpoint (2-3h)
+- [ ] Create Intent Classifier prompt (1-2h)
+
+Afternoon:
+- [ ] Add pendingActions state (0.5h)
+- [ ] Update handleSend orchestration (2-3h)
+```
+
+**Day 2: Testing & Deployment (4-6h)**
+```
+Morning:
+- [ ] Add pending detection in stream (1h)
+- [ ] Remove old auto-agent code (0.5h)
+- [ ] Local testing (2h)
+
+Afternoon:
+- [ ] Integration testing (1h)
+- [ ] Code review (1h)
+- [ ] Staging deployment + testing (1.5h)
+```
+
+**Day 3+: Monitoring (ongoing)**
+```
+- [ ] Production deployment (0.5h)
+- [ ] Monitor for 24h
+- [ ] Gradual rollout (if successful)
+```
+
+---
+
+## 🎯 PHASE 2 PREVIEW (FUTURE)
+
+After Phase 1 MVP is successful, Phase 2 will add **advanced security features**.
+
+### Phase 2 Goals
+
+1. **Enhanced Security Layer**
+   - Prompt injection detection
+   - Context poisoning prevention
+   - Threat classification (low/medium/high)
+
+2. **Threat Logging to Summarization Agent**
+   - Security events logged in chat summaries
+   - Persistent threat tracking
+   - Pattern detection across conversations
+
+3. **Proactive User Education**
+   - When threat detected, Omnia explains what happened
+   - Educational responses ("This looks like a prompt injection...")
+   - No shaming, just transparency
+
+4. **Dynamic Context Window**
+   - Simple chat: 3-5 messages (fast, cheap)
+   - Complex workflow (editing): 20+ messages (more context)
+   - Auto-adjust based on scenario
+
+5. **More Tool Types**
+   - Image editing (not just generation)
+   - Chart generation (QuickChart integration)
+   - Video generation (future)
+
+### Phase 2 Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Intent Classifier (Enhanced)                  │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Intent Detection (existing)                                   │
+│ 2. Security Analysis (NEW)                                       │
+│    ├─ Prompt injection detection                                │
+│    ├─ Context poisoning check                                   │
+│    └─ Threat classification                                     │
+│ 3. Threat Logging (NEW)                                          │
+│    └─ Send to Summarization Agent                               │
+│ 4. Dynamic Context (NEW)                                         │
+│    └─ Adjust window size based on scenario                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Phase 2 Timeline
+
+**Estimated:** 2-3 weeks after Phase 1 success
+
+**Benefits:**
+- 🔒 Enhanced security (protect against attacks)
+- 📊 Better threat visibility (know what's happening)
+- 🎓 User education (transparency builds trust)
+- ⚡ Performance optimization (dynamic context)
+
+---
+
+## 📝 STATUS TRACKING
+
+### Implementation Checklist
+
+- [ ] **Documentation**
+  - [x] INTENT_CLASSIFIER.md created
+  - [ ] ARCHITECTURE.md updated
+  - [ ] Team reviewed
+
+- [ ] **Code Changes**
+  - [ ] `/api/intent-classifier.js` created
+  - [ ] `/src/prompts/intent-classifier.js` created
+  - [ ] `/src/App.jsx` - pendingActions state added
+  - [ ] `/src/App.jsx` - handleSend updated
+  - [ ] `/src/App.jsx` - pending detection added
+  - [ ] `/src/App.jsx` - old code removed
+
+- [ ] **Testing**
+  - [ ] Unit tests (10 scenarios)
+  - [ ] Integration tests (local)
+  - [ ] Staging tests
+  - [ ] Production monitoring (24h)
+
+- [ ] **Deployment**
+  - [ ] Local development complete
+  - [ ] Staging deployed
+  - [ ] Production deployed (monitoring mode)
+  - [ ] Production deployed (10% rollout)
+  - [ ] Production deployed (50% rollout)
+  - [ ] Production deployed (100% rollout)
+
+- [ ] **Monitoring**
+  - [ ] Metrics dashboard setup
+  - [ ] Alert conditions configured
+  - [ ] Daily reports generated
+  - [ ] Week 1 analysis complete
+
+---
+
+### Version History
+
+| Version | Date | Changes | Author |
+|---------|------|---------|--------|
+| 1.0 | 2025-01-16 | Initial documentation | Cristian + Claude |
+| - | - | (Implementation pending) | - |
+
+---
+
+### References
+
+- [Gemini 2.0 Flash Lite Docs](https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini)
+- [Vertex AI Pricing](https://cloud.google.com/vertex-ai/pricing)
+- [Omnia Architecture Docs](./ARCHITECTURE.md)
+- [Background Agent Implementation](../api/background-agent.js)
+
+---
+
+**Last updated:** 2025-01-16
+**Status:** ✅ Documentation complete, ready for implementation
+**Next step:** Create `/api/intent-classifier.js` endpoint
+
+---
+
+**END OF DOCUMENT**

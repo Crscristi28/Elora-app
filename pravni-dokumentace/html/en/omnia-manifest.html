@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omnia One AI Principles and Capabilities</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <a class="lang-option" href="../cs/omnia-manifest.html">Čeština</a><span class="lang-option active">English</span><a class="lang-option" href="../ro/omnia-manifest.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Omnia One AI Principles and Capabilities</h1>
+<p>This manifesto explains why Omnia is designed as an offline-first, privacy-respecting AI assistant and how it works in practice. The statements are supported by the project's source code (IndexedDB chat database, Supabase sync layer, API routes) and current application features.</p>
+<h2>1. Offline-First Experience</h2>
+<ul>
+<li>The local <code>OmniaChatDB</code> (Dexie/IndexedDB) stores chats and attachments directly in the browser so users can keep working without connectivity.</li>
+<li>The sync layer (<code>src/services/sync/chatSync.js</code>) uploads data to the cloud only when a connection is available and honours user settings.</li>
+<li>If Supabase environment variables are missing, the app switches to local mode and does not transmit data to the server.</li>
+</ul>
+<h2>2. Privacy and User Control</h2>
+<ul>
+<li>Auth tokens are verified exclusively on the backend (service role); the client never receives privileged keys.</li>
+<li>Supabase Row Level Security ensures users see only their own chats, messages and files.</li>
+<li>Storage buckets enforce ownership; only the author can delete attachments, generated images or PDFs.</li>
+<li>The <code>delete-account.js</code> function performs a full account wipe via <code>supabase.auth.admin.deleteUser</code>, cascading to profiles, chats and messages.</li>
+<li>Chat deletions (<code>chatDB.deleteChat</code>) remove linked Storage files before database entries.</li>
+<li>The application does not sell or disclose data to third parties beyond what is required for integrated AI services.</li>
+</ul>
+<h2>3. No Training on Customer Data</h2>
+<ul>
+<li>API calls are configured to use &quot;no training&quot; or equivalent modes offered by providers (Google Vertex AI, Anthropic, OpenAI).</li>
+<li>Runtime logs contain only technical metadata (status codes, request IDs) and exclude conversation content.</li>
+</ul>
+<h2>4. User Data Always Available</h2>
+<ul>
+<li>Conversation history is accessible locally and, after sync, in Supabase.</li>
+<li>The UI allows exports and keeps profiles for personalised prompts.</li>
+<li>When switching devices, the <code>chatSyncService</code> restores conversations after login.</li>
+</ul>
+<h2>5. What Omnia Can Do</h2>
+<ul>
+<li><strong>Text AI</strong>: integrates Gemini 2.5 Flash, Claude Sonnet/Haiku and GPT-4o; users can switch models within the same context.</li>
+<li><strong>Content generation</strong>: create text, summaries, structured outputs, PDF reports (<code>api/generate-pdf.js</code>).</li>
+<li><strong>File processing</strong>: <code>api/process-document.js</code> handles both text uploads and PDFs via Google Document AI.</li>
+<li><strong>Images</strong>: generated images are saved to Supabase Storage (<code>generated-images</code>) and can be downloaded.</li>
+<li><strong>Voice</strong>: convert speech to text (<code>api/google-stt.js</code>) and text to speech (<code>api/google-tts.js</code>, <code>api/elevenlabs-tts.js</code>).</li>
+<li><strong>Unlimited chats</strong>: Omnia does not impose artificial chat limits; pagination and deletion keep storage manageable.</li>
+<li><strong>Fast sharing</strong>: Supabase Realtime mirrors conversation updates across devices.</li>
+</ul>
+<h2>6. Why Omnia Is Different</h2>
+<ul>
+<li>Multiple AI models share a single context, enabling comparisons and seamless switching without losing history.</li>
+<li>Offline-first architecture minimises latency and reinforces privacy by keeping data primarily with the user.</li>
+<li>Security mechanisms (auth, storage, sync) are fully documented in the repository for easy auditing.</li>
+<li>Teams can use Supabase metrics and exports to build additional workflows (billing, agent monitoring).</li>
+<li>The app supports multiple languages (CZ, EN, RO, DE, etc.) and auto-detects language in text and voice flows.</li>
+</ul>
+<h2>7. Commitments to Users</h2>
+<ul>
+<li><strong>Transparency</strong>: current terms, privacy policy and this manifesto live in <code>pravni-dokumentace</code> and will be updated regularly.</li>
+<li><strong>Data deletion</strong>: account removal triggers backend deletion and clears Storage buckets.</li>
+<li><strong>Open roadmap</strong>: public documents in <code>docs/</code> describe planned improvements (agents, realtime sync).</li>
+<li><strong>Feedback</strong>: <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a> is the primary contact for requests and incident reports.</li>
+</ul>
+<hr>
+<p>This manifesto is a public statement on Omnia One AI's privacy stance, offline-first architecture and feature set as of 2 November 2025.</p>
+  </main>
+</body>
+</html>

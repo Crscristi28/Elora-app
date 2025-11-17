@@ -1,0 +1,862 @@
+# 🎨 GEMINI FLASH IMAGE MIGRATION GUIDE
+
+**Migration from:** Imagen 4.0
+**Migration to:** Gemini 2.5 Flash Image (nano banana 🍌)
+**Date:** October 2025
+**Status:** Planning phase
+
+---
+
+## 📋 TABLE OF CONTENTS
+
+1. [Overview](#overview)
+2. [Why Migrate?](#why-migrate)
+3. [Architecture Comparison](#architecture-comparison)
+4. [Current Implementation Analysis](#current-implementation-analysis)
+5. [Migration Plan](#migration-plan)
+6. [API Reference](#api-reference)
+7. [Implementation Examples](#implementation-examples)
+8. [Testing Checklist](#testing-checklist)
+9. [Rollback Plan](#rollback-plan)
+10. [Cost Analysis](#cost-analysis)
+
+---
+
+## 1. OVERVIEW
+
+Gemini 2.5 Flash Image (aka "nano banana") is Google's new state-of-the-art image generation model that replaces Imagen. It offers:
+
+- ✅ **Lower cost** ($0.039/image vs Imagen's higher pricing)
+- ✅ **Conversational image generation** (multi-turn refinement)
+- ✅ **Advanced features** (editing, fusion, character consistency)
+- ✅ **Same Vertex AI integration** (easier setup)
+- ✅ **Production ready** (GA since late 2024)
+
+**Retirement notice:** Imagen `imagen-4.0-generate-preview-06-06` will be retired October 31, 2025.
+
+---
+
+## 2. WHY MIGRATE?
+
+### Benefits:
+
+1. **Cost savings:**
+   - Imagen: ~$0.04-0.08 per image
+   - Flash Image: **$0.039 per image** (~0.90 Kč)
+   - Savings: **50%+**
+
+2. **Better features:**
+   - Image editing (remove objects, blur backgrounds, colorize)
+   - Multi-image fusion (combine photos)
+   - Character consistency (same character across images)
+   - Conversational refinement (iterate on images)
+
+3. **Simpler integration:**
+   - Same Vertex AI SDK (already using for Gemini Flash)
+   - No separate Imagen API setup
+   - Unified authentication
+
+4. **Future-proof:**
+   - Imagen retiring October 2025
+   - Flash Image is production ready and actively developed
+
+---
+
+## 3. ARCHITECTURE COMPARISON
+
+### Current (Imagen):
+
+```
+User → "vytvoř logo"
+  ↓
+Gemini Flash detects intent → tool call: generate_image(prompt)
+  ↓
+Backend (api/gemini.js) → Imagen REST API call
+  ↓
+Imagen API: https://us-central1-aiplatform.googleapis.com/.../imagen-4.0-generate-preview-06-06:predict
+  ↓
+Returns: { predictions: [{ bytesBase64Encoded: "..." }] }
+  ↓
+Frontend: base64 → upload to Supabase storage
+  ↓
+Get HTTPS URL → display in chat
+```
+
+**Limitations:**
+- ❌ Only text-to-image generation
+- ❌ No editing capabilities
+- ❌ No multi-image support
+- ❌ Separate REST API (complex setup)
+
+---
+
+### New (Flash Image):
+
+```
+User → "vytvoř logo"
+  ↓
+Gemini Flash detects intent → tool call: generate_image(prompt)
+  ↓
+Backend (api/gemini.js) → Flash Image via Vertex AI SDK
+  ↓
+Model: gemini-2.5-flash-image (same SDK as Gemini Flash!)
+  ↓
+Returns: { parts: [{ inlineData: { data: base64, mimeType: "image/png" }}]}
+  ↓
+Frontend: base64 → upload to Supabase storage (SAME as now!)
+  ↓
+Get HTTPS URL → display in chat
+```
+
+**NEW Capabilities:**
+- ✅ Text-to-image (same as before)
+- ✅ Image editing (new!)
+- ✅ Multi-image fusion (new!)
+- ✅ Character consistency (new!)
+- ✅ Conversational (multi-turn refinement)
+
+---
+
+## 4. CURRENT IMPLEMENTATION ANALYSIS
+
+### Files involved:
+
+1. **`/api/gemini.js`** (lines 401-480)
+   - Image generation tool calling
+   - Direct Imagen REST API call
+   - Base64 image processing
+
+2. **`/api/imagen.js`**
+   - Standalone Imagen endpoint (backup/testing)
+   - Can be deprecated or migrated internally
+
+3. **Tool definitions** (`/api/gemini.js` lines 173-244)
+   - `generate_image` tool
+   - Currently only supports text-to-image
+
+4. **Prompt** (`/src/prompts/omnia.js` lines 105-109)
+   - Tool descriptions for Omnia
+   - Lists available image tools
+
+### Image storage flow:
+
+**User uploads:**
+```
+User device → DirectUpload.js → GCS bucket (omnia-uploads)
+  ↓
+Gets: gs://omnia-uploads/xyz.jpg
+  ↓
+Metadata → Supabase (for sync)
+  ↓
+Chat uses: gs:// URL
+```
+
+**Omnia generates:**
+```
+Imagen API → base64 PNG
+  ↓
+Frontend → Supabase storage bucket
+  ↓
+Gets: https://xyz.supabase.co/.../image.png
+  ↓
+Chat uses: HTTPS URL
+```
+
+**KEY INSIGHT:**
+- User uploads = **GCS** (`gs://`) ← Flash Image can read directly!
+- Generated images = **Supabase** (HTTPS) ← Flash Image can read via HTTPS!
+- **NO BASE64 needed for input!** Only for output (same as now)
+
+---
+
+## 5. MIGRATION PLAN
+
+### Phase 1: Basic Generation (Replace Imagen) ✅
+
+**Goal:** Text-to-image with Flash Image (drop-in replacement)
+
+**Changes:**
+1. Update tool implementation in `/api/gemini.js`
+2. Replace Imagen REST API → Vertex AI SDK
+3. Keep base64 output flow (no frontend changes)
+
+**Estimated time:** 2-3 hours
+**Risk:** Low (same functionality, better model)
+
+---
+
+### Phase 2: Add Image Editing 🆕
+
+**Goal:** Enable image editing capabilities
+
+**Changes:**
+1. Add `edit_image` tool definition
+2. Implement editing with GCS URLs (user uploads)
+3. Implement editing with HTTPS URLs (generated images)
+
+**New features:**
+- "remove background"
+- "blur this person"
+- "make it black and white"
+- "add color to this photo"
+
+**Estimated time:** 3-4 hours
+**Risk:** Medium (new feature, needs testing)
+
+---
+
+### Phase 3: Add Multi-Image Fusion 🆕
+
+**Goal:** Enable combining multiple images
+
+**Changes:**
+1. Add `combine_images` tool definition
+2. Implement fusion with array of URLs (GCS + HTTPS mix)
+
+**New features:**
+- "combine these 3 photos"
+- "place this object in that scene"
+- "merge these images"
+
+**Estimated time:** 2-3 hours
+**Risk:** Medium (new feature)
+
+---
+
+### Phase 4: Character Consistency (Optional) 🆕
+
+**Goal:** Maintain same character across images
+
+**Implementation:**
+- Use conversation history to maintain character
+- Multi-turn with Flash Image model
+
+**Estimated time:** 2-3 hours
+**Risk:** Low (natural feature of conversational model)
+
+---
+
+## 6. API REFERENCE
+
+### Model Details:
+
+**Model ID:** `gemini-2.5-flash-image`
+**Pricing:** $0.039 per image (1290 output tokens)
+**Max input images:** 3 per request
+**Supported aspect ratios:** 1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
+**Default resolution:** 1024x1024
+
+### Input formats:
+
+1. **Text only** (generation):
+```javascript
+{
+  contents: [{
+    role: 'user',
+    parts: [{ text: 'create a logo for nail salon' }]
+  }]
+}
+```
+
+2. **Text + GCS image** (editing):
+```javascript
+{
+  contents: [{
+    role: 'user',
+    parts: [
+      { text: 'remove the background' },
+      { fileData: {
+          mimeType: 'image/jpeg',
+          fileUri: 'gs://omnia-uploads/photo.jpg'
+      }}
+    ]
+  }]
+}
+```
+
+3. **Text + HTTPS image** (editing):
+```javascript
+{
+  contents: [{
+    role: 'user',
+    parts: [
+      { text: 'make it more yellow' },
+      { fileData: {
+          mimeType: 'image/png',
+          fileUri: 'https://supabase.co/.../image.png'
+      }}
+    ]
+  }]
+}
+```
+
+4. **Text + multiple images** (fusion):
+```javascript
+{
+  contents: [{
+    role: 'user',
+    parts: [
+      { text: 'combine these images' },
+      { fileData: { mimeType: 'image/jpeg', fileUri: 'gs://bucket/img1.jpg' }},
+      { fileData: { mimeType: 'image/jpeg', fileUri: 'gs://bucket/img2.jpg' }},
+      { fileData: { mimeType: 'image/png', fileUri: 'https://.../img3.png' }}
+    ]
+  }]
+}
+```
+
+### Output format:
+
+```javascript
+{
+  response: {
+    candidates: [{
+      content: {
+        parts: [
+          {
+            inlineData: {
+              data: "base64EncodedImageString...",
+              mimeType: "image/png"
+            }
+          },
+          { text: "Optional text response" } // Sometimes included
+        ]
+      }
+    }]
+  }
+}
+```
+
+---
+
+## 7. IMPLEMENTATION EXAMPLES
+
+### Example 1: Text-to-Image Generation (Basic)
+
+**Location:** `/api/gemini.js` around line 403
+
+**Current (Imagen):**
+```javascript
+// When generate_image tool is called
+const { prompt, imageCount = 1 } = part.functionCall.args;
+
+// Imagen REST API call
+const imagenUrl = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagen-4.0-generate-preview-06-06:predict`;
+
+const imagenResponse = await fetch(imagenUrl, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken.token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    instances: [{ prompt: prompt.trim() }],
+    parameters: {
+      sampleCount: Math.min(imageCount, 4),
+      aspectRatio: "1:1"
+    }
+  })
+});
+
+const imagenResult = await imagenResponse.json();
+const images = imagenResult.predictions.map(p => ({
+  base64: p.bytesBase64Encoded,
+  mimeType: 'image/png'
+}));
+```
+
+**New (Flash Image):**
+```javascript
+// When generate_image tool is called
+const { prompt, imageCount = 1 } = part.functionCall.args;
+
+// Use Vertex AI SDK (already initialized at top of file)
+const flashImageModel = vertexAI.getGenerativeModel({
+  model: 'gemini-2.5-flash-image'
+});
+
+// Generate image(s)
+const result = await flashImageModel.generateContent({
+  contents: [{
+    role: 'user',
+    parts: [{ text: prompt.trim() }]
+  }]
+});
+
+// Extract images from response
+const images = [];
+for (const part of result.response.candidates[0].content.parts) {
+  if (part.inlineData) {
+    images.push({
+      base64: part.inlineData.data,
+      mimeType: part.inlineData.mimeType || 'image/png'
+    });
+  }
+}
+
+// If multiple images requested but only 1 returned, try generating more
+// Note: Flash Image might not always return exact count requested
+if (images.length < imageCount && imageCount <= 3) {
+  console.log(`⚠️ Requested ${imageCount} images but got ${images.length}`);
+  // Could retry or just return what we got
+}
+```
+
+---
+
+### Example 2: Image Editing with GCS URL
+
+**New tool definition:**
+```javascript
+// Add to tools array when imageMode or wantsImage
+{
+  functionDeclarations: [{
+    name: "edit_image",
+    description: "Edit an existing image using natural language prompts. Can remove objects, blur backgrounds, change colors, add effects, etc.",
+    parameters: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description: "What changes to make to the image (e.g., 'remove background', 'blur the person', 'make it black and white')"
+        },
+        imageUrl: {
+          type: "string",
+          description: "URL of the image to edit. Can be GCS URL (gs://) or HTTPS URL"
+        }
+      },
+      required: ["prompt", "imageUrl"]
+    }
+  }]
+}
+```
+
+**Implementation:**
+```javascript
+// When edit_image tool is called
+else if (part.functionCall?.name === 'edit_image') {
+  console.log('🎨 [TOOL] edit_image called');
+
+  const { prompt, imageUrl } = part.functionCall.args;
+
+  // Validate URL
+  if (!imageUrl || (!imageUrl.startsWith('gs://') && !imageUrl.startsWith('https://'))) {
+    throw new Error('Invalid image URL. Must be GCS (gs://) or HTTPS URL');
+  }
+
+  // Detect mime type from URL
+  const mimeType = imageUrl.endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+  // Initialize Flash Image model
+  const flashImageModel = vertexAI.getGenerativeModel({
+    model: 'gemini-2.5-flash-image'
+  });
+
+  // Edit image
+  const result = await flashImageModel.generateContent({
+    contents: [{
+      role: 'user',
+      parts: [
+        { text: prompt },
+        { fileData: { mimeType, fileUri: imageUrl }}
+      ]
+    }]
+  });
+
+  // Extract edited image
+  const images = [];
+  for (const part of result.response.candidates[0].content.parts) {
+    if (part.inlineData) {
+      images.push({
+        base64: part.inlineData.data,
+        mimeType: part.inlineData.mimeType
+      });
+    }
+  }
+
+  // Stream result to frontend
+  res.write(JSON.stringify({
+    requestId,
+    type: 'image_generated',
+    images: images
+  }) + '\n');
+  if (typeof res.flush === 'function') { res.flush(); }
+}
+```
+
+---
+
+### Example 3: Multi-Image Fusion
+
+**Tool definition:**
+```javascript
+{
+  functionDeclarations: [{
+    name: "combine_images",
+    description: "Combine, merge, or blend multiple images into one. Can place objects from one image into another, or create composite scenes.",
+    parameters: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description: "How to combine the images (e.g., 'combine these', 'place the car on the road', 'merge into one scene')"
+        },
+        imageUrls: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of image URLs to combine (GCS gs:// or HTTPS). Maximum 3 images.",
+          maxItems: 3
+        }
+      },
+      required: ["prompt", "imageUrls"]
+    }
+  }]
+}
+```
+
+**Implementation:**
+```javascript
+else if (part.functionCall?.name === 'combine_images') {
+  console.log('🎨 [TOOL] combine_images called');
+
+  const { prompt, imageUrls } = part.functionCall.args;
+
+  // Validate
+  if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
+    throw new Error('imageUrls must be a non-empty array');
+  }
+  if (imageUrls.length > 3) {
+    throw new Error('Maximum 3 images supported for fusion');
+  }
+
+  // Build parts array
+  const parts = [
+    { text: prompt },
+    ...imageUrls.map(url => {
+      const mimeType = url.endsWith('.png') ? 'image/png' : 'image/jpeg';
+      return { fileData: { mimeType, fileUri: url }};
+    })
+  ];
+
+  // Initialize model
+  const flashImageModel = vertexAI.getGenerativeModel({
+    model: 'gemini-2.5-flash-image'
+  });
+
+  // Combine images
+  const result = await flashImageModel.generateContent({
+    contents: [{ role: 'user', parts }]
+  });
+
+  // Extract combined image
+  const images = [];
+  for (const part of result.response.candidates[0].content.parts) {
+    if (part.inlineData) {
+      images.push({
+        base64: part.inlineData.data,
+        mimeType: part.inlineData.mimeType
+      });
+    }
+  }
+
+  // Stream to frontend
+  res.write(JSON.stringify({
+    requestId,
+    type: 'image_generated',
+    images: images
+  }) + '\n');
+  if (typeof res.flush === 'function') { res.flush(); }
+}
+```
+
+---
+
+### Example 4: Character Consistency (Multi-turn)
+
+**How it works:**
+
+Flash Image is conversational, so maintaining character happens naturally through conversation history.
+
+**User flow:**
+```
+User: "Create a cartoon dog mascot"
+  ↓
+Flash Image generates → Dog character (image 1)
+  ↓
+User: "Show the same dog running"
+  ↓
+Flash Image uses conversation context → Same dog, running pose (image 2)
+  ↓
+User: "Now show it sleeping"
+  ↓
+Flash Image maintains character → Same dog, sleeping (image 3)
+```
+
+**Implementation:**
+
+No special code needed! Just ensure conversation history is maintained when calling Flash Image model.
+
+```javascript
+// If multi-turn image generation (same session)
+// Flash Image automatically maintains character consistency
+// based on conversation context
+
+// Example: second request in same conversation
+const result = await flashImageModel.generateContent({
+  contents: [
+    { role: 'user', parts: [{ text: 'Create a cartoon dog' }] },
+    { role: 'model', parts: [{ inlineData: { data: previousImageBase64, mimeType: 'image/png' }}]},
+    { role: 'user', parts: [{ text: 'Show the same dog running' }] }
+  ]
+});
+
+// Flash Image will maintain the same dog character!
+```
+
+**Note:** For Omnia, this likely happens automatically since each chat session maintains conversation history.
+
+---
+
+## 8. TESTING CHECKLIST
+
+### Phase 1: Basic Generation ✅
+
+- [ ] Generate 1 image from text prompt
+- [ ] Generate 2 images from text prompt
+- [ ] Generate 3 images from text prompt
+- [ ] Test with Czech prompts
+- [ ] Test with English prompts
+- [ ] Test with complex prompts (long descriptions)
+- [ ] Verify base64 output format matches Imagen
+- [ ] Verify frontend upload to Supabase works
+- [ ] Check generated image quality
+- [ ] Monitor response time vs Imagen
+
+### Phase 2: Image Editing 🆕
+
+**Editing user uploads (GCS URLs):**
+- [ ] Upload photo → edit: "remove background"
+- [ ] Upload photo → edit: "blur the background"
+- [ ] Upload photo → edit: "remove person on the left"
+- [ ] Upload photo → edit: "make it black and white"
+- [ ] Upload photo → edit: "add vintage filter"
+- [ ] Test with `gs://` URLs
+- [ ] Verify edited image quality
+
+**Editing generated images (HTTPS URLs):**
+- [ ] Generate logo → edit: "make it yellow"
+- [ ] Generate image → edit: "add flowers"
+- [ ] Test with Supabase HTTPS URLs
+- [ ] Multi-turn editing (edit → edit again → edit again)
+
+### Phase 3: Multi-Image Fusion 🆕
+
+- [ ] Combine 2 user-uploaded photos (both GCS)
+- [ ] Combine user upload + generated image (GCS + HTTPS)
+- [ ] Combine 3 images (max supported)
+- [ ] Test: "place object from img1 into scene from img2"
+- [ ] Test: "merge these photos into one"
+- [ ] Verify combined image quality
+
+### Phase 4: Character Consistency 🆕
+
+- [ ] Generate character → request same character in different pose
+- [ ] Test 3+ iterations with same character
+- [ ] Verify character features remain consistent
+- [ ] Test with different types (person, animal, object, mascot)
+
+### Error Handling:
+
+- [ ] Test with invalid URLs
+- [ ] Test with non-image URLs
+- [ ] Test with unsupported image formats
+- [ ] Test with missing prompt
+- [ ] Test with too many images (>3)
+- [ ] Test API timeout scenarios
+- [ ] Test rate limiting
+
+### Performance:
+
+- [ ] Measure generation time vs Imagen
+- [ ] Check memory usage
+- [ ] Monitor API costs
+- [ ] Test concurrent requests
+
+---
+
+## 9. ROLLBACK PLAN
+
+If Flash Image has issues, quick rollback:
+
+### Option 1: Code rollback
+
+```bash
+# Revert to previous commit
+git revert <migration-commit-hash>
+git push
+```
+
+### Option 2: Feature flag (safer)
+
+Add environment variable to switch between models:
+
+```javascript
+// In api/gemini.js
+const USE_FLASH_IMAGE = process.env.USE_FLASH_IMAGE === 'true';
+
+if (USE_FLASH_IMAGE) {
+  // Use Flash Image
+} else {
+  // Use Imagen (old code)
+}
+```
+
+Then in Vercel:
+- Set `USE_FLASH_IMAGE=false` to rollback
+- Set `USE_FLASH_IMAGE=true` to use new model
+
+### Option 3: Keep Imagen endpoint
+
+Keep `/api/imagen.js` functional as backup:
+
+```javascript
+// Frontend can fallback to direct Imagen call
+if (flashImageFails) {
+  await fetch('/api/imagen', { /* ... */ });
+}
+```
+
+---
+
+## 10. COST ANALYSIS
+
+### Current (Imagen):
+
+**Pricing:** ~$0.04-0.08 per image (estimated)
+
+**Monthly usage estimate:**
+- 1000 images/month = **$40-80/month**
+
+---
+
+### New (Flash Image):
+
+**Pricing:** $0.039 per image (fixed)
+
+**Monthly usage estimate:**
+- 1000 images/month = **$39/month**
+
+**Savings:** ~$1-41/month (2-50% reduction)
+
+---
+
+### With new features (editing, fusion):
+
+**Increased usage possible:**
+- Users edit images more (multi-turn)
+- Users combine photos
+- More image interactions overall
+
+**Estimated usage with new features:**
+- 1500 images/month (50% increase due to new features)
+- Cost: 1500 × $0.039 = **$58.50/month**
+
+**Still cheaper than:** 1000 Imagen images at $0.08 = $80/month
+
+**Net savings:** ~$21.50/month (27% reduction)
+
+---
+
+### Cost per feature:
+
+**Text-to-image:** $0.039 ✅
+**Edit image:** $0.039 ✅ (same as generation!)
+**Combine images:** $0.039 ✅ (one output image)
+**Multi-turn:** $0.039 per iteration ✅
+
+**vs Imagen:**
+- Text-to-image only: $0.04-0.08
+- No editing: Would need separate tool (more $$$)
+- No fusion: Would need separate tool (more $$$)
+
+**Flash Image = more features at lower cost!** 🎯
+
+---
+
+## 11. ADDITIONAL NOTES
+
+### Best Practices:
+
+1. **Prompt specificity:** Be detailed in prompts for better results
+2. **Aspect ratios:** Specify if not default 1:1
+3. **Error handling:** Always handle model errors gracefully
+4. **Rate limiting:** Monitor API usage, implement throttling if needed
+5. **Image caching:** Consider caching generated images to avoid re-generation
+
+### Known Limitations:
+
+- Max 3 input images per request
+- Might not generate exact count requested (ask for 4, get 3)
+- Best performance in: EN, es-MX, ja-JP, zh-CN, hi-IN (Czech works but not optimized)
+- No audio/video input support
+- No pixel-perfect control (semantic understanding only)
+
+### Documentation Links:
+
+- [Official Vertex AI Docs](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/image-generation)
+- [Gemini API Docs](https://ai.google.dev/gemini-api/docs/image-generation)
+- [Blog Announcement](https://developers.googleblog.com/en/introducing-gemini-2-5-flash-image/)
+- [Model Card](https://storage.googleapis.com/deepmind-media/Model-Cards/Gemini-2-5-Flash-Model-Card.pdf)
+
+---
+
+## 12. IMPLEMENTATION TIMELINE
+
+**Total estimated time:** 10-15 hours
+
+**Breakdown:**
+- Phase 1 (Basic generation): 2-3 hours
+- Phase 2 (Image editing): 3-4 hours
+- Phase 3 (Multi-image fusion): 2-3 hours
+- Phase 4 (Character consistency): 2-3 hours
+- Testing: 3-4 hours
+
+**Recommended schedule:**
+
+**Weekend Day 1:**
+- Morning: Phase 1 (basic generation)
+- Afternoon: Testing Phase 1 + Phase 2 start
+
+**Weekend Day 2:**
+- Morning: Complete Phase 2 + Phase 3
+- Afternoon: Phase 4 + comprehensive testing
+
+**Deployment:** Deploy to production after all phases tested
+
+---
+
+## STATUS TRACKING
+
+- [ ] Documentation reviewed
+- [ ] Phase 1 implementation started
+- [ ] Phase 1 tested
+- [ ] Phase 1 deployed to production
+- [ ] Phase 2 implementation started
+- [ ] Phase 2 tested
+- [ ] Phase 2 deployed
+- [ ] Phase 3 implementation started
+- [ ] Phase 3 tested
+- [ ] Phase 3 deployed
+- [ ] Phase 4 implementation started
+- [ ] Phase 4 tested
+- [ ] Phase 4 deployed
+- [ ] All features tested end-to-end
+- [ ] Old Imagen code archived
+- [ ] Documentation updated
+- [ ] Migration complete! 🎉
+
+---
+
+**Last updated:** October 7, 2025
+**Created by:** Claude Code + Cristian
+**Version:** 1.0

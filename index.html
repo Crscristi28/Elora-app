@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/elora.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#FDFBF7" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="google" content="notranslate" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Elora" />
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+  
+  <!-- Apple Touch Icon -->
+  <link rel="apple-touch-icon" href="/elora.png" />
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="Elora - AI Asistent" />
+  <meta property="og:description" content="Inteligentní AI asistent s Claude a GPT-4" />
+  <meta property="og:image" content="/elora.png" />
+  <meta property="og:url" content="https://omnia-peach.vercel.app" />
+  <meta property="og:type" content="website" />
+  
+  <title>Elora - AI Asistent</title>
+
+  <!-- FOUC Fix: Detect theme BEFORE React loads -->
+  <script>
+    (function() {
+      // Get saved theme from localStorage
+      let savedTheme = localStorage.getItem('elora-theme');
+      let actualTheme;
+
+      // If no saved preference OR set to 'system', auto-detect and save as 'system'
+      if (!savedTheme || savedTheme === 'system') {
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        actualTheme = prefersDark ? 'dark' : 'light';
+
+        // Save 'system' to indicate auto-detection mode
+        if (!savedTheme) {
+          localStorage.setItem('elora-theme', 'system');
+        }
+      } else {
+        // Manual theme selection
+        actualTheme = savedTheme;
+      }
+
+      // Set theme attribute on document
+      document.documentElement.setAttribute('data-theme', actualTheme);
+
+      // Set theme-color meta tag immediately (single universal tag)
+      const metaTheme = document.querySelector('meta[name="theme-color"]');
+
+      // Set color based on detected theme
+      if (metaTheme) {
+        if (actualTheme === 'light') {
+          metaTheme.setAttribute('content', '#FDFBF7'); // Cream - MAIN THEME
+        } else if (actualTheme === 'dark') {
+          metaTheme.setAttribute('content', '#000000');
+        } else if (actualTheme === 'omnia') {
+          metaTheme.setAttribute('content', '#0055aa'); // Elora blue
+        }
+      }
+
+      // Set apple-mobile-web-app-status-bar-style immediately
+      const appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+      if (appleStatusBar) {
+        // Always use 'default' to respect theme-color for ALL themes
+        // This prevents black-translucent from overriding light themes
+        appleStatusBar.setAttribute('content', 'default');
+      }
+
+      // Wait for body to be available before setting background
+      if (document.body) {
+        setBodyBackground(actualTheme);
+      } else {
+        document.addEventListener('DOMContentLoaded', function() {
+          setBodyBackground(actualTheme);
+        });
+      }
+
+      function setBodyBackground(theme) {
+        // Set initial background color immediately - explicit for all 3 themes
+        if (theme === 'light') {
+          document.body.style.backgroundColor = '#FDFBF7'; // Cream - MAIN THEME
+        } else if (theme === 'dark') {
+          document.body.style.backgroundColor = '#000000';
+        } else if (theme === 'omnia') {
+          document.body.style.backgroundColor = '#0055aa'; // Elora blue
+        }
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>

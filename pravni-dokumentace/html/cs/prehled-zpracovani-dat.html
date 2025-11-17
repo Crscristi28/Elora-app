@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prehled zpracovani osobnich a provoznich dat v Omnia One AI</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 3rem; line-height: 1.6; color: #1a202c; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #cbd5f5; padding: 0.6rem 0.8rem; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .language-bar { background: rgba(15, 23, 42, 0.82); padding: 1rem 0; border-bottom: 1px solid rgba(148, 163, 198, 0.18); margin-bottom: 2rem; position: sticky; top: 0; backdrop-filter: blur(14px); z-index: 5; }
+    .language-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-wrap: wrap; }
+    .language-label { font-size: 0.9rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .language-options { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .language-options a, .language-options span { font-size: 0.95rem; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(148, 163, 198, 0.3); color: #e2e8f0; text-decoration: none; transition: all 0.2s ease; }
+    .language-options a:hover { border-color: rgba(56, 189, 248, 0.6); color: #38bdf8; }
+    .language-options .active { background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default; }
+    @media (max-width: 640px) { .language-inner { padding: 0 1rem; } }
+  </style>
+</head>
+<body>
+  <main class="legal-document">
+
+  <nav class="language-bar">
+    <div class="language-inner">
+      <span class="language-label">Language</span>
+      <div class="language-options">
+        <span class="lang-option active">Čeština</span><a class="lang-option" href="../en/data-processing-overview.html">English</a><a class="lang-option" href="../ro/data-processing-overview.html">Română</a>
+      </div>
+    </div>
+  </nav>
+<h1>Prehled zpracovani osobnich a provoznich dat v Omnia One AI</h1>
+<p>Tento prehled plni funkci zaznamu o cinnostech zpracovani dle cl. 30 GDPR. Udaje byly sestaveny na zaklade aktualni implementace (supabase schema, API routy, frontendove sluzby).</p>
+<h2>1. Dataset: Uzivatelske ucty</h2>
+<ul>
+<li><strong>Popis</strong>: Registrace pres Supabase Auth, evidence v tabulkach <code>auth.users</code> a <code>profiles</code>.</li>
+<li><strong>Kategorie udaju</strong>: e-mail, heslo (hash), id uzivatele, role, jmeno, prezdivka, preferovana lokalizace, casy vytvoreni/aktualizace.</li>
+<li><strong>Subjekty</strong>: registrovani uzivatele.</li>
+<li><strong>Ucel</strong>: vytvoreni a udrzovani uctu, personalizace odpovedi AI.</li>
+<li><strong>Pravni zaklad</strong>: plneni smlouvy.</li>
+<li><strong>Prijemci</strong>: Supabase (EU).</li>
+<li><strong>Uchovani</strong>: po dobu existence uctu; mazano pri volani <code>delete-account.js</code>.</li>
+<li><strong>Bezpecnost</strong>: RLS, sifrovane prenosy, hesla hashovana, service role pouze na backendu.</li>
+</ul>
+<h2>2. Dataset: Chatove zpravy a kontext</h2>
+<ul>
+<li><strong>Popis</strong>: Tabulky <code>chats</code>, <code>messages</code>, lokalni IndexedDB <code>OmniaChatDB</code>.</li>
+<li><strong>Kategorie udaju</strong>: textove zpravy, metadata (timestamps, sender, device_id, sources), prilohy (attachments, images, pdf), AI odpovedi.</li>
+<li><strong>Subjekty</strong>: registrovani uzivatele, jejich konverzacni partner AI.</li>
+<li><strong>Ucel</strong>: poskytnuti AI asistenta, historie konverzace, kontinuita.</li>
+<li><strong>Pravni zaklad</strong>: plneni smlouvy.</li>
+<li><strong>Prijemci</strong>: Supabase, poskytovatele AI (Google Vertex AI, Anthropic, OpenAI) v rozsahu aktualni zpravy.</li>
+<li><strong>Uchovani</strong>: do smazani chatu nebo uctu; lokalne lze kdykoli odstranit.</li>
+<li><strong>Mazani</strong>: funkce <code>deleteChat</code> nejprve maze soubory ze Storage, pote radky v IndexedDB i Supabase.</li>
+<li><strong>Bezpecnost</strong>: RLS <code>auth.uid()</code>, Storage vlastnik = uzivatel, offline sifrovani je zajisteno ulozistem prohlizece.</li>
+</ul>
+<h2>3. Dataset: Nahrane soubory a generovane vystupy</h2>
+<ul>
+<li><strong>Popis</strong>: Supabase Storage (attachments, generated-images, generated-pdfs-temp), Google Cloud Storage pri zpracovani dokumentu, lokalni cache.</li>
+<li><strong>Kategorie udaju</strong>: obsah souboru nahranych uzivatelem, AI vytvorene obrazky, PDF, metadata (nazev, velikost, cesta, publicUrl).</li>
+<li><strong>Subjekty</strong>: registrovani uzivatele.</li>
+<li><strong>Ucel</strong>: analyza dokumentu, generovani vystupu, stazeni uzivatelem.</li>
+<li><strong>Pravni zaklad</strong>: plneni smlouvy, ve vyjimecnych pripadech souhlas (pokud uzivatel dobrovolne prilozi citliva data).</li>
+<li><strong>Prijemci</strong>: Supabase Storage (EU), Google Document AI a Google Storage (pri zpracovani), ElevenLabs (pokud je soubor vysledkem TTS).</li>
+<li><strong>Uchovani</strong>: do smazani konkretniho souboru nebo ukonceni uctu; docasna uloziste jsou uklizena po dokoncenem procesu.</li>
+<li><strong>Bezpecnost</strong>: RLS na Storage (mazani pouze vlastnik), protokol HTTPS, kontrola MIME typu, pred smazanim chatu dochazi k odstraneni dat z bucketu.</li>
+</ul>
+<h2>4. Dataset: Hlasova komunikace</h2>
+<ul>
+<li><strong>Popis</strong>: Audio data posilana na <code>api/google-stt.js</code> a <code>api/elevenlabs-stt.js</code>, resp. text generovany <code>api/elevenlabs-tts.js</code> a <code>api/google-tts.js</code>.</li>
+<li><strong>Kategorie udaju</strong>: kratkodobe audio zaznamy, transkripce, generovane audio.</li>
+<li><strong>Subjekty</strong>: registrovani uzivatele, pripadne osoby v zaznamech (pokud je uzivatel zachyti).</li>
+<li><strong>Ucel</strong>: prevod reci na text a naopak.</li>
+<li><strong>Pravni zaklad</strong>: plneni smlouvy.</li>
+<li><strong>Prijemci</strong>: Google Cloud Speech-to-Text, ElevenLabs.</li>
+<li><strong>Uchovani</strong>: audio se neuklada po doruceni odpovedi; generovane MP3 se vraci v ramci streamu a dale se nearchivuji.</li>
+<li><strong>Bezpecnost</strong>: limit velikosti souboru, sanitizace vstupu, HTTPS.</li>
+</ul>
+<h2>5. Dataset: Provozni a vykonostni metriky</h2>
+<ul>
+<li><strong>Popis</strong>: Tabulka <code>usage_metrics</code>, lokalni logy, analyticke agregace.</li>
+<li><strong>Kategorie udaju</strong>: user_id, typ metriky (pocet zprav, spotrebovane tokeny), hodnota, datum.</li>
+<li><strong>Subjekty</strong>: registrovani uzivatele.</li>
+<li><strong>Ucel</strong>: monitoring, billing, ochrana pred zneuzitim.</li>
+<li><strong>Pravni zaklad</strong>: opravneny zajem Provozovatele, pripadne plneni smlouvy pro fakturaci.</li>
+<li><strong>Prijemci</strong>: Supabase (EU), Stripe (pro prirazeni plateb).</li>
+<li><strong>Uchovani</strong>: do 24 mesicu od vytvoreni nebo do vymazani uctu.</li>
+<li><strong>Bezpecnost</strong>: RLS, pristup pouze autentizovanym session.</li>
+</ul>
+<h2>6. Dataset: Platebni agenda</h2>
+<ul>
+<li><strong>Popis</strong>: Integrace se Stripe, tabulka <code>subscriptions</code>.</li>
+<li><strong>Kategorie udaju</strong>: user_id, plan_id, status, stripe_customer_id, stripe_subscription_id, billing period.</li>
+<li><strong>Subjekty</strong>: uzivatele s aktivnim predplatnym.</li>
+<li><strong>Ucel</strong>: evidence plateb, fakturace, uzivatelska podpora.</li>
+<li><strong>Pravni zaklad</strong>: plneni smlouvy, pravni povinnost uchovani ucetnich dokladu.</li>
+<li><strong>Prijemci</strong>: Stripe (USA/EU).</li>
+<li><strong>Uchovani</strong>: dle podminek Stripe a zakonnych povinnosti (minimalne 5 let).</li>
+<li><strong>Bezpecnost</strong>: tokenizace; aplikace neuchovava cisla karet. Mazani probiha pres Stripe dashboard nebo API.</li>
+</ul>
+<h2>7. Dataset: Podpora a komunikace</h2>
+<ul>
+<li><strong>Popis</strong>: E-mailova komunikace se zakaznikem, notifikacni sablony v Supabase.</li>
+<li><strong>Kategorie udaju</strong>: e-mail, obsah zpravy, informace o problemu.</li>
+<li><strong>Subjekty</strong>: uzivatele, kteri kontaktuji podporu.</li>
+<li><strong>Ucel</strong>: odpoved na dotazy, reseni incidentu.</li>
+<li><strong>Pravni zaklad</strong>: opravneny zajem.</li>
+<li><strong>Prijemci</strong>: poskytovatel e-mailove schranky (<a href="http://omniaoneai.com">omniaoneai.com</a>).</li>
+<li><strong>Uchovani</strong>: po dobu reseni dotazu + 12 mesicu pro audit.</li>
+<li><strong>Bezpecnost</strong>: pristup pouze Provozovatel; sifrovana e-mailova komunikace (TLS).</li>
+</ul>
+<h2>8. Postupy pri uplatneni prav subjektu udaju</h2>
+<ul>
+<li>Zadosti se prijimaji na adrese <a href="mailto:cristianbucioaca@omniaoneai.com">cristianbucioaca@omniaoneai.com</a>.</li>
+<li>Autentizace zadatele probiha pres verifikaci vlastnictvi e-mailu v Supabase (v pripade potreby je mozne vyzadovat dalsi informace).</li>
+<li>Export dat zahrnuje: profily, seznam chatu, obsah zprav, metriky a metadata souboru.</li>
+<li>Vymaz se provadi volanim <code>delete-account.js</code> a manualnim overenim, ze Storage neobsahuje dalsi soubory.</li>
+<li>Odpoved je poskytovana do 30 dnu, ve slozitych pripadech lze lhutu prodlouzit o dalsich 30 dnu s informovanim uzivatele.</li>
+</ul>
+<hr>
+<p>Prehled byl sestaven 2. listopadu 2025. Zmeny v implementaci se promtn e projevi v aktualizacich tohoto dokumentu.</p>
+  </main>
+</body>
+</html>

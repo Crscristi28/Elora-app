@@ -1,0 +1,1355 @@
+# 💰 OMNIA MONETIZATION - Full Implementation Plan
+
+**Date:** 2025-01-15
+**Status:** Ready to implement (waiting for Stripe API keys)
+
+---
+
+## 🎯 GOAL
+
+Implement complete subscription system with Stripe integration, usage tracking, and upgrade flows for Omnia AI.
+
+---
+
+## 💶 PRICING (Confirmed)
+
+```
+┌─────────────┬──────────┬─────────────┬───────────┐
+│ Plan        │ Price    │ Per Month   │ Savings   │
+├─────────────┼──────────┼─────────────┼───────────┤
+│ Free        │ €0       │ €0          │ -         │
+│ Monthly     │ €12.99   │ €12.99      │ -         │
+│ Quarterly   │ €34.99   │ €11.66      │ Save 10%  │
+└─────────────┴──────────┴─────────────┴───────────┘
+```
+
+**Free Tier Limits:**
+- 20 messages per day (resets at midnight)
+- 3 file uploads per day
+- 3 image generations per day
+- Gemini Flash only (no Claude/GPT-4)
+
+**Premium Features:**
+- ✅ Unlimited messages
+- ✅ Unlimited file uploads
+- ✅ Unlimited image generations
+- ✅ All AI models (Gemini Flash, Gemini Pro, Claude Sonnet, GPT-4)
+- ✅ Priority support (future)
+
+---
+
+## 📦 PHASE 1: Core Services (2 hours)
+
+### A. Usage Tracking Service
+
+**Create:** `/src/services/usage/`
+
+#### File: `usageTracker.js`
+
+**Purpose:** Track user's daily usage (messages, uploads, generations)
+
+**Functions to implement:**
+```javascript
+// Track message send
+async function trackMessage(userId, model, tokens) {
+  // Increment message count in IndexedDB
+  // Store: { userId, date, messageCount, tokenCount }
+  // Sync to Supabase usage_metrics table
+}
+
+// Track file upload
+async function trackUpload(userId, fileSize, fileName) {
+  // Increment upload count
+  // Store: { userId, date, uploadCount, totalBytes }
+}
+
+// Track image generation
+async function trackImageGeneration(userId, model) {
+  // Increment generation count
+  // Store: { userId, date, generationCount }
+}
+
+// Get today's usage
+async function getUsageToday(userId) {
+  // Return: { messages: 16, uploads: 2, generations: 1 }
+}
+
+// Reset usage at midnight (cron job or check on load)
+async function resetDaily() {
+  // Check if date changed, reset counters
+}
+```
+
+**Storage:**
+- IndexedDB: Fast local access
+- Supabase: `usage_metrics` table for persistence
+
+---
+
+#### File: `usageLimits.js`
+
+**Purpose:** Define limits and check if user can perform action
+
+**Constants:**
+```javascript
+export const FREE_LIMITS = {
+  messages: 20,        // per day
+  uploads: 3,          // per day
+  generations: 3,      // per day
+  models: ['gemini-flash']  // allowed models
+};
+
+export const PREMIUM_LIMITS = {
+  messages: Infinity,
+  uploads: Infinity,
+  generations: Infinity,
+  models: ['gemini-flash', 'gemini-pro', 'claude-sonnet', 'gpt-4']
+};
+```
+
+**Functions:**
+```javascript
+// Check if user can send message
+async function canSendMessage(userId, plan) {
+  if (plan === 'premium') return true;
+
+  const usage = await getUsageToday(userId);
+  return usage.messages < FREE_LIMITS.messages;
+}
+
+// Check if user can upload file
+async function canUploadFile(userId, plan) {
+  if (plan === 'premium') return true;
+
+  const usage = await getUsageToday(userId);
+  return usage.uploads < FREE_LIMITS.uploads;
+}
+
+// Check if user can generate image
+async function canGenerateImage(userId, plan) {
+  if (plan === 'premium') return true;
+
+  const usage = await getUsageToday(userId);
+  return usage.generations < FREE_LIMITS.generations;
+}
+
+// Check if user has access to model
+function hasModelAccess(model, plan) {
+  const limits = plan === 'premium' ? PREMIUM_LIMITS : FREE_LIMITS;
+  return limits.models.includes(model);
+}
+```
+
+---
+
+#### File: `usageDB.js`
+
+**Purpose:** IndexedDB storage for usage metrics
+
+**Schema:**
+```javascript
+// Dexie table
+db.version(X).stores({
+  usage: '++id, userId, date, type, value'
+});
+
+// Record format:
+{
+  id: 1,
+  userId: 'uuid',
+  date: '2025-01-15',
+  type: 'messages',  // or 'uploads', 'generations'
+  value: 16
+}
+```
+
+**Functions:**
+```javascript
+async function saveUsage(userId, type, value) {
+  // Save to IndexedDB
+  // Debounced sync to Supabase
+}
+
+async function getUsageByDate(userId, date) {
+  // Fetch from IndexedDB
+  // Fallback to Supabase if not found
+}
+
+async function syncToSupabase(userId) {
+  // Batch upload usage_metrics to Supabase
+}
+```
+
+---
+
+### B. Subscription Service
+
+**Create:** `/src/services/subscription/`
+
+#### File: `subscriptionService.js`
+
+**Purpose:** Manage user's subscription state
+
+**Functions:**
+```javascript
+// Fetch user's subscription from Supabase
+async function getUserSubscription(userId) {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .single();
+
+  return data;
+}
+
+// Get user's plan (free or premium)
+async function getPlan(userId) {
+  const subscription = await getUserSubscription(userId);
+
+  if (!subscription) return 'free';
+  if (subscription.status !== 'active') return 'free';
+
+  return 'premium';
+}
+
+// Check if user has access to feature
+async function hasAccess(userId, feature) {
+  const plan = await getPlan(userId);
+
+  const FEATURE_GATES = {
+    'claude': plan === 'premium',
+    'gpt-4': plan === 'premium',
+    'unlimited-messages': plan === 'premium',
+    'unlimited-uploads': plan === 'premium',
+    'unlimited-generations': plan === 'premium'
+  };
+
+  return FEATURE_GATES[feature] || false;
+}
+
+// Refresh subscription from Supabase
+async function refreshSubscription(userId) {
+  // Clear cache
+  // Re-fetch from Supabase
+  // Update local state
+}
+```
+
+**State Management:**
+```javascript
+// Store subscription in React Context or localStorage
+let cachedSubscription = null;
+let lastFetch = null;
+
+// Cache for 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000;
+```
+
+---
+
+#### File: `stripeService.js`
+
+**Purpose:** Stripe client integration
+
+**Functions:**
+```javascript
+// Create checkout session for subscription
+async function createCheckoutSession(priceId, userId) {
+  const response = await fetch('/api/stripe-checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      priceId,  // 'price_monthly' or 'price_quarterly'
+      userId,
+      successUrl: `${window.location.origin}?payment=success`,
+      cancelUrl: `${window.location.origin}?payment=cancelled`
+    })
+  });
+
+  const { url } = await response.json();
+  window.location.href = url;  // Redirect to Stripe
+}
+
+// Create customer portal session (manage subscription)
+async function createPortalSession(customerId) {
+  const response = await fetch('/api/stripe-portal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customerId })
+  });
+
+  const { url } = await response.json();
+  window.open(url, '_blank');  // Open portal in new tab
+}
+
+// Get subscription status
+async function getSubscriptionStatus(userId) {
+  const response = await fetch(`/api/get-subscription?userId=${userId}`);
+  return await response.json();
+}
+```
+
+---
+
+## 🔌 PHASE 2: API Routes (1.5 hours)
+
+### A. Stripe Integration
+
+**Create:** `/api/`
+
+#### File: `stripe-checkout.js`
+
+**Purpose:** Create Stripe checkout session
+
+```javascript
+import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { priceId, userId, successUrl, cancelUrl } = req.body;
+
+  try {
+    // Get user email from Supabase
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', userId)
+      .single();
+
+    // Create or retrieve customer
+    let customer;
+    const { data: existingSubscription } = await supabase
+      .from('subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (existingSubscription?.stripe_customer_id) {
+      customer = await stripe.customers.retrieve(
+        existingSubscription.stripe_customer_id
+      );
+    } else {
+      customer = await stripe.customers.create({
+        email: profile.email,
+        metadata: { userId }
+      });
+    }
+
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      customer: customer.id,
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: { userId },
+      subscription_data: {
+        metadata: { userId }
+      },
+      // Enable Stripe Tax (automatic VAT calculation)
+      automatic_tax: { enabled: true }
+    });
+
+    return res.status(200).json({ url: session.url });
+  } catch (error) {
+    console.error('Stripe checkout error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+```
+
+---
+
+#### File: `stripe-webhook.js`
+
+**Purpose:** Handle Stripe events (payments, cancellations, etc.)
+
+```javascript
+import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
+import { buffer } from 'micro';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+export const config = {
+  api: { bodyParser: false }  // Required for webhook signature verification
+};
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const buf = await buffer(req);
+  const sig = req.headers['stripe-signature'];
+
+  let event;
+
+  try {
+    // Verify webhook signature
+    event = stripe.webhooks.constructEvent(
+      buf,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).json({ error: 'Invalid signature' });
+  }
+
+  // Handle events
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const userId = session.metadata.userId;
+        const customerId = session.customer;
+        const subscriptionId = session.subscription;
+
+        // Create subscription record in Supabase
+        await supabase.from('subscriptions').insert({
+          user_id: userId,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          status: 'active',
+          plan_id: 'premium',  // Determine from priceId if needed
+          current_period_start: new Date(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        });
+
+        console.log(`✅ Subscription created for user ${userId}`);
+        break;
+      }
+
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object;
+        const userId = subscription.metadata.userId;
+
+        // Update subscription in Supabase
+        await supabase
+          .from('subscriptions')
+          .update({
+            status: subscription.status,
+            current_period_start: new Date(subscription.current_period_start * 1000),
+            current_period_end: new Date(subscription.current_period_end * 1000)
+          })
+          .eq('stripe_subscription_id', subscription.id);
+
+        console.log(`🔄 Subscription updated for user ${userId}`);
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        const userId = subscription.metadata.userId;
+
+        // Mark subscription as cancelled
+        await supabase
+          .from('subscriptions')
+          .update({ status: 'cancelled' })
+          .eq('stripe_subscription_id', subscription.id);
+
+        console.log(`❌ Subscription cancelled for user ${userId}`);
+        break;
+      }
+
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('Webhook handler error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+```
+
+**Webhook Setup:**
+1. Stripe Dashboard → Developers → Webhooks
+2. Add endpoint: `https://yourdomain.com/api/stripe-webhook`
+3. Select events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
+4. Copy webhook signing secret → add to env vars
+
+---
+
+#### File: `stripe-portal.js`
+
+**Purpose:** Generate customer portal link (for manage/cancel subscription)
+
+```javascript
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { customerId } = req.body;
+
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${process.env.APP_URL}/settings`
+    });
+
+    return res.status(200).json({ url: session.url });
+  } catch (error) {
+    console.error('Portal session error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+```
+
+---
+
+#### File: `get-subscription.js`
+
+**Purpose:** Fetch user's current subscription
+
+```javascript
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { userId } = req.query;
+
+  try {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .single();
+
+    if (error) {
+      return res.status(404).json({ plan: 'free' });
+    }
+
+    return res.status(200).json({
+      plan: 'premium',
+      subscription: data
+    });
+  } catch (error) {
+    console.error('Get subscription error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+```
+
+---
+
+### B. API Protection
+
+**Modify existing API routes to add limit checks**
+
+#### Pattern to add to each API route:
+
+```javascript
+// Add at the top of handler function
+import { getPlan } from '../src/services/subscription/subscriptionService.js';
+import { canSendMessage, canUploadFile, canGenerateImage } from '../src/services/usage/usageLimits.js';
+import { trackMessage, trackUpload, trackImageGeneration } from '../src/services/usage/usageTracker.js';
+
+// Example for /api/gemini.js
+export default async function handler(req, res) {
+  // ... existing auth check ...
+
+  const userId = user.id;
+  const plan = await getPlan(userId);
+
+  // Check if user can send message
+  if (!await canSendMessage(userId, plan)) {
+    return res.status(429).json({
+      error: 'LIMIT_REACHED',
+      limit: 'messages',
+      plan,
+      message: 'Daily message limit reached. Upgrade to Premium for unlimited messages.'
+    });
+  }
+
+  // ... process request ...
+
+  // Track usage after successful request
+  await trackMessage(userId, 'gemini-flash', tokensUsed);
+
+  // ... return response ...
+}
+```
+
+#### Files to modify:
+
+1. **`/api/gemini.js`** - Add message limit check
+2. **`/api/claude.js`** - Add premium-only check + message limit
+3. **`/api/openai.js`** - Add premium-only check + message limit
+4. **`/api/process-document.js`** - Add upload limit check
+5. **`/api/imagen.js`** - Add generation limit check
+
+**Premium-only check example:**
+```javascript
+// For Claude/GPT-4
+if (plan !== 'premium') {
+  return res.status(403).json({
+    error: 'PREMIUM_ONLY',
+    feature: 'claude',
+    message: 'Claude Sonnet is available for Premium users only.'
+  });
+}
+```
+
+---
+
+## 🎨 PHASE 3: UI Components (1 hour)
+
+### A. Update PricingModal
+
+**Modify:** `/src/components/modals/PricingModal.jsx`
+
+**Changes needed:**
+
+1. **Update pricing:**
+```javascript
+const plans = [
+  {
+    id: 'free',
+    name: 'Free',
+    price: '0',
+    currency: 'Free',
+    period: 'forever',
+    features: [
+      '20 messages per day',
+      '3 file uploads daily',
+      '3 image generations daily',
+      'Gemini Flash only',
+      'Standard support'
+    ]
+  },
+  {
+    id: 'premium-monthly',
+    name: 'Premium',
+    price: '12.99',
+    currency: '€',
+    period: 'per month',
+    features: [
+      'Unlimited messages',
+      'Unlimited file uploads',
+      'Unlimited image generations',
+      'All AI models access',
+      'Priority support',
+      'Advanced features'
+    ]
+  },
+  {
+    id: 'premium-quarterly',
+    name: 'Premium',
+    price: '34.99',
+    currency: '€',
+    period: 'for 3 months',
+    badge: 'SAVE 10%',
+    features: [
+      'Unlimited messages',
+      'Unlimited file uploads',
+      'Unlimited image generations',
+      'All AI models access',
+      'Priority support',
+      'Advanced features'
+    ],
+    popular: true
+  }
+];
+```
+
+2. **Add Stripe checkout handler:**
+```javascript
+import { createCheckoutSession } from '../../services/subscription/stripeService';
+
+const handleUpgrade = async (planId) => {
+  const priceId = planId === 'premium-monthly'
+    ? 'price_monthly_id'   // From Stripe Dashboard
+    : 'price_quarterly_id';
+
+  await createCheckoutSession(priceId, user.id);
+};
+
+// Update button onClick
+<button onClick={() => handleUpgrade(plan.id)}>
+  {plan.buttonText}
+</button>
+```
+
+---
+
+### B. Create Upgrade Modals
+
+**Create:** `/src/components/modals/`
+
+#### File: `LimitReachedModal.jsx`
+
+**Purpose:** Hard block when user hits daily limit
+
+```javascript
+import React from 'react';
+import { AlertCircle } from 'lucide-react';
+
+const LimitReachedModal = ({
+  isOpen,
+  onClose,
+  limitType,  // 'messages' | 'uploads' | 'generations'
+  usage,      // { current: 20, limit: 20 }
+  onUpgrade
+}) => {
+  if (!isOpen) return null;
+
+  const messages = {
+    messages: {
+      title: '🛑 Daily Message Limit Reached',
+      description: `You've used all ${usage.limit} messages for today.`,
+      cta: 'Upgrade to Premium for unlimited messages'
+    },
+    uploads: {
+      title: '📁 Upload Limit Reached',
+      description: `You've used all ${usage.limit} file uploads for today.`,
+      cta: 'Upgrade to Premium for unlimited uploads'
+    },
+    generations: {
+      title: '🎨 Generation Limit Reached',
+      description: `You've used all ${usage.limit} image generations for today.`,
+      cta: 'Upgrade to Premium for unlimited generations'
+    }
+  };
+
+  const content = messages[limitType];
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <AlertCircle size={48} color="#EF4444" />
+        <h2>{content.title}</h2>
+        <p>{content.description}</p>
+        <p className="upgrade-message">{content.cta}</p>
+
+        <div className="button-group">
+          <button onClick={onUpgrade} className="btn-primary">
+            Upgrade to Premium - €12.99/month
+          </button>
+          <button onClick={onClose} className="btn-secondary">
+            Wait until tomorrow
+          </button>
+        </div>
+
+        <p className="reset-info">
+          Your limit resets at midnight (00:00 CET)
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default LimitReachedModal;
+```
+
+---
+
+#### File: `UpgradePromptModal.jsx`
+
+**Purpose:** Soft nudge when approaching limit (80% usage)
+
+```javascript
+import React from 'react';
+import { TrendingUp } from 'lucide-react';
+
+const UpgradePromptModal = ({
+  isOpen,
+  onClose,
+  usage,      // { messages: 16/20, uploads: 2/3, generations: 2/3 }
+  onUpgrade
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content small" onClick={(e) => e.stopPropagation()}>
+        <TrendingUp size={32} color="#F59E0B" />
+        <h3>You're close to your daily limit</h3>
+
+        <div className="usage-stats">
+          <div className="stat">
+            <span>Messages:</span>
+            <span>{usage.messages.current}/{usage.messages.limit}</span>
+          </div>
+          <div className="stat">
+            <span>Uploads:</span>
+            <span>{usage.uploads.current}/{usage.uploads.limit}</span>
+          </div>
+          <div className="stat">
+            <span>Generations:</span>
+            <span>{usage.generations.current}/{usage.generations.limit}</span>
+          </div>
+        </div>
+
+        <p>Upgrade to Premium for unlimited usage</p>
+
+        <div className="button-group">
+          <button onClick={onUpgrade} className="btn-primary">
+            See Premium Plans
+          </button>
+          <button onClick={onClose} className="btn-text">
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default UpgradePromptModal;
+```
+
+---
+
+#### File: `FeatureLockedModal.jsx`
+
+**Purpose:** Show when user tries to access premium feature (Claude/GPT-4)
+
+```javascript
+import React from 'react';
+import { Lock } from 'lucide-react';
+
+const FeatureLockedModal = ({
+  isOpen,
+  onClose,
+  feature,     // 'claude' | 'gpt-4' | 'deep-reasoning'
+  onUpgrade
+}) => {
+  if (!isOpen) return null;
+
+  const features = {
+    'claude': {
+      icon: '🤖',
+      name: 'Claude Sonnet 4.5',
+      description: 'Advanced reasoning and analysis'
+    },
+    'gpt-4': {
+      icon: '🧠',
+      name: 'GPT-4',
+      description: 'OpenAI\'s most capable model'
+    },
+    'deep-reasoning': {
+      icon: '🎯',
+      name: 'Deep Reasoning Mode',
+      description: 'Multi-step problem solving'
+    }
+  };
+
+  const featureInfo = features[feature];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="feature-header">
+          <span className="feature-icon">{featureInfo.icon}</span>
+          <Lock size={24} color="#3B82F6" />
+        </div>
+
+        <h2>{featureInfo.name}</h2>
+        <p className="feature-description">{featureInfo.description}</p>
+
+        <div className="premium-badge">Premium Feature</div>
+
+        <p>This feature is available for Premium members only.</p>
+
+        <div className="button-group">
+          <button onClick={onUpgrade} className="btn-primary">
+            Upgrade to Premium - €12.99/month
+          </button>
+          <button onClick={onClose} className="btn-secondary">
+            Use Gemini Flash (Free)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default FeatureLockedModal;
+```
+
+---
+
+### C. Usage Indicator Component
+
+**Create:** `/src/components/ui/UsageIndicator.jsx`
+
+**Purpose:** Show current usage in ChatSidebar or Header
+
+```javascript
+import React from 'react';
+import { TrendingUp } from 'lucide-react';
+
+const UsageIndicator = ({ usage, plan, onClick }) => {
+  if (plan === 'premium') {
+    return (
+      <div className="usage-indicator premium">
+        <span className="premium-badge">Premium</span>
+        <span>Unlimited</span>
+      </div>
+    );
+  }
+
+  const percentage = (usage.messages / 20) * 100;
+  const color = percentage > 80 ? '#EF4444' : percentage > 50 ? '#F59E0B' : '#10B981';
+
+  return (
+    <div className="usage-indicator free" onClick={onClick}>
+      <div className="usage-header">
+        <TrendingUp size={14} color={color} />
+        <span>{usage.messages}/20 messages</span>
+      </div>
+
+      <div className="progress-bar">
+        <div
+          className="progress-fill"
+          style={{ width: `${percentage}%`, backgroundColor: color }}
+        />
+      </div>
+
+      <span className="usage-hint">Click to upgrade</span>
+    </div>
+  );
+};
+
+export default UsageIndicator;
+```
+
+**Add to ChatSidebar:**
+```javascript
+import UsageIndicator from '../ui/UsageIndicator';
+
+// In ChatSidebar component
+<UsageIndicator
+  usage={currentUsage}
+  plan={userPlan}
+  onClick={() => setShowPricingModal(true)}
+/>
+```
+
+---
+
+## 🔄 PHASE 4: App Integration (30 mins)
+
+### A. Modify App.jsx
+
+**Changes needed:**
+
+1. **Initialize subscription service:**
+```javascript
+import { getPlan, refreshSubscription } from './services/subscription/subscriptionService';
+import { getUsageToday, resetDaily } from './services/usage/usageTracker';
+
+// Add state
+const [userPlan, setUserPlan] = useState('free');
+const [currentUsage, setCurrentUsage] = useState({ messages: 0, uploads: 0, generations: 0 });
+
+// On mount and when user changes
+useEffect(() => {
+  if (user) {
+    loadUserPlan();
+    loadUsage();
+  }
+}, [user]);
+
+async function loadUserPlan() {
+  const plan = await getPlan(user.id);
+  setUserPlan(plan);
+}
+
+async function loadUsage() {
+  await resetDaily();  // Check if date changed
+  const usage = await getUsageToday(user.id);
+  setCurrentUsage(usage);
+}
+```
+
+2. **Add usage tracking to message send:**
+```javascript
+import { trackMessage } from './services/usage/usageTracker';
+import { canSendMessage } from './services/usage/usageLimits';
+
+// Before sending message
+const canSend = await canSendMessage(user.id, userPlan);
+if (!canSend) {
+  setShowLimitReachedModal(true);
+  setLimitType('messages');
+  return;
+}
+
+// After successful message
+await trackMessage(user.id, selectedModel, tokensUsed);
+await loadUsage();  // Refresh usage display
+```
+
+3. **Pass plan status to components:**
+```javascript
+<ChatSidebar
+  // ... existing props
+  userPlan={userPlan}
+  currentUsage={currentUsage}
+  onUpgrade={() => setShowPricingModal(true)}
+/>
+```
+
+---
+
+### B. Update UserSettingsModal
+
+**Add subscription management:**
+
+```javascript
+import { createPortalSession } from '../../services/subscription/stripeService';
+
+// Show current plan
+<div className="subscription-section">
+  <h3>Your Plan</h3>
+  <div className="current-plan">
+    {userPlan === 'free' ? (
+      <>
+        <span>Free Plan</span>
+        <button onClick={() => setShowPricingModal(true)}>
+          Upgrade to Premium
+        </button>
+      </>
+    ) : (
+      <>
+        <span>Premium Plan</span>
+        <span className="plan-status">Active</span>
+        <button onClick={() => createPortalSession(stripeCustomerId)}>
+          Manage Subscription
+        </button>
+      </>
+    )}
+  </div>
+</div>
+
+// Show usage stats (free users only)
+{userPlan === 'free' && (
+  <div className="usage-stats">
+    <h4>Today's Usage</h4>
+    <div className="stat">
+      <span>Messages:</span>
+      <span>{currentUsage.messages}/20</span>
+    </div>
+    <div className="stat">
+      <span>Uploads:</span>
+      <span>{currentUsage.uploads}/3</span>
+    </div>
+    <div className="stat">
+      <span>Generations:</span>
+      <span>{currentUsage.generations}/3</span>
+    </div>
+  </div>
+)}
+```
+
+---
+
+## 🧪 PHASE 5: Testing (1 hour)
+
+### Test Scenarios:
+
+#### 1. Free User Flow
+- [ ] Send 20 messages → 21st blocked with LimitReachedModal
+- [ ] Upload 3 files → 4th blocked with LimitReachedModal
+- [ ] Generate 3 images → 4th blocked with LimitReachedModal
+- [ ] Try to select Claude → FeatureLockedModal shown
+- [ ] Try to select GPT-4 → FeatureLockedModal shown
+- [ ] Usage indicator updates in real-time
+- [ ] At 16 messages → UpgradePromptModal (dismissible)
+
+#### 2. Upgrade Flow
+- [ ] Click "Upgrade Now" → redirects to Stripe checkout
+- [ ] Fill test card: `4242 4242 4242 4242`
+- [ ] Complete payment → redirected back to app
+- [ ] Webhook received → subscription created in Supabase
+- [ ] Plan updates to "premium" in UI
+- [ ] All limits removed
+- [ ] Claude/GPT-4 unlocked
+
+#### 3. Premium User Flow
+- [ ] Send unlimited messages → no blocks
+- [ ] Upload unlimited files → no blocks
+- [ ] Generate unlimited images → no blocks
+- [ ] Access to all models (Gemini, Claude, GPT-4)
+- [ ] Usage indicator shows "Premium - Unlimited"
+
+#### 4. Subscription Management
+- [ ] Click "Manage Subscription" → opens Stripe portal
+- [ ] Cancel subscription → webhook updates status to 'cancelled'
+- [ ] Plan downgrades to 'free' at period end
+- [ ] Limits enforced again
+
+#### 5. Edge Cases
+- [ ] Midnight reset → usage counters reset to 0
+- [ ] Multiple devices → usage synced via Supabase
+- [ ] Offline mode → usage tracked locally, synced when online
+- [ ] Payment failure → webhook logs error, user stays free
+
+---
+
+### Stripe Test Cards:
+
+```
+Success: 4242 4242 4242 4242
+Decline: 4000 0000 0000 0002
+3D Secure: 4000 0027 6000 3184
+Insufficient funds: 4000 0000 0000 9995
+```
+
+---
+
+## 🔐 Environment Variables
+
+**Add to Vercel:**
+
+```bash
+# Stripe Keys (Test Mode)
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Stripe Price IDs (create in Stripe Dashboard)
+STRIPE_PRICE_MONTHLY=price_1234...
+STRIPE_PRICE_QUARTERLY=price_5678...
+
+# Feature Flag
+ENABLE_MONETIZATION=true
+
+# App URL (for redirects)
+APP_URL=https://omnia.app
+```
+
+---
+
+### Stripe Products Setup:
+
+**Create in Stripe Dashboard → Products:**
+
+1. **Omnia Premium Monthly**
+   - Price: €12.99
+   - Billing: Recurring monthly
+   - Tax: Automatic (Stripe Tax enabled)
+   - Copy Price ID: `price_xxx`
+
+2. **Omnia Premium Quarterly**
+   - Price: €34.99
+   - Billing: Recurring every 3 months
+   - Tax: Automatic (Stripe Tax enabled)
+   - Copy Price ID: `price_yyy`
+
+---
+
+## 📊 Database Schema (Already Exists!)
+
+**Tables:**
+- ✅ `usage_metrics` - track daily usage
+- ✅ `subscriptions` - Stripe subscriptions
+- ✅ RLS policies enabled
+
+**No schema changes needed!**
+
+---
+
+## 🚀 Deployment Steps
+
+### 1. Test Mode (First)
+
+1. Implement all code
+2. Deploy to Vercel
+3. Add Stripe Test Mode keys to env vars
+4. Set up webhook: `https://yourdomain.com/api/stripe-webhook`
+5. Test complete flow with test cards
+6. Verify webhook events logged
+7. Check Supabase subscription records
+
+### 2. Production Mode (After testing)
+
+1. Switch to Stripe Production keys
+2. Create production products/prices
+3. Update webhook URL (production endpoint)
+4. Test with real card (refund immediately)
+5. Monitor for 24 hours
+6. Enable `ENABLE_MONETIZATION=true`
+
+### 3. Launch
+
+1. Announce to users (in-app banner)
+2. Email existing users (if you have emails)
+3. Update landing page with pricing
+4. Monitor conversions
+5. Track usage patterns
+6. Iterate based on feedback
+
+---
+
+## 📈 Monitoring & Analytics
+
+### Metrics to track:
+
+**Usage Metrics:**
+- Daily active users (DAU)
+- Free users hitting limits
+- Upgrade prompt shows vs dismissals
+- Limit reached modal shows
+
+**Conversion Metrics:**
+- Free → Premium conversion rate
+- Monthly vs Quarterly preference
+- Time to first upgrade (days)
+- Upgrade trigger (which limit hit)
+
+**Revenue Metrics:**
+- Monthly Recurring Revenue (MRR)
+- Customer Lifetime Value (LTV)
+- Churn rate
+- Average revenue per user (ARPU)
+
+**Implementation:**
+- Google Analytics events
+- Stripe Dashboard metrics
+- Supabase usage_metrics queries
+- Custom analytics dashboard (future)
+
+---
+
+## ⏱️ Timeline Estimate
+
+**Implementation:** 4-5 hours (when Stripe keys available)
+- Phase 1: Core Services - 2 hours
+- Phase 2: API Routes - 1.5 hours
+- Phase 3: UI Components - 1 hour
+- Phase 4: App Integration - 30 mins
+
+**Testing:** 1-2 hours
+- Test all flows
+- Verify webhooks
+- Check edge cases
+
+**Bug Fixes:** 1 hour
+- Address issues found in testing
+
+**Total:** ~7 hours of focused work
+
+---
+
+## ✅ Pre-Launch Checklist
+
+**Before Implementation:**
+- [ ] Stripe account created (Individual)
+- [ ] Test Mode API keys obtained
+- [ ] Webhook endpoint configured
+- [ ] Products created in Stripe Dashboard
+- [ ] Price IDs copied
+
+**Before Production Launch:**
+- [ ] All test scenarios passed
+- [ ] Webhooks working correctly
+- [ ] Legal docs updated (Terms, Privacy)
+- [ ] Stripe Production mode enabled
+- [ ] Real payment tested (and refunded)
+- [ ] Support email set up (for billing questions)
+
+**After Launch:**
+- [ ] Monitor webhook events (first 24h)
+- [ ] Check for errors in logs
+- [ ] Verify subscription syncs working
+- [ ] Track first conversions
+- [ ] Respond to user feedback
+
+---
+
+## 🆘 Support & Troubleshooting
+
+### Common Issues:
+
+**Webhook not receiving events:**
+- Check webhook URL is correct
+- Verify webhook secret matches env var
+- Check Stripe Dashboard → Webhooks for failed attempts
+- Ensure API route doesn't have authentication blocking Stripe
+
+**Subscription not updating:**
+- Check webhook logs for errors
+- Verify Supabase connection in webhook
+- Check user_id metadata passed correctly
+- Test webhook endpoint manually (Stripe CLI)
+
+**Payment succeeded but user still Free:**
+- Check `subscriptions` table in Supabase
+- Verify webhook processed `checkout.session.completed`
+- Check `status` field is 'active'
+- Force refresh subscription in app
+
+**User downgraded unexpectedly:**
+- Check if subscription cancelled in Stripe
+- Verify `current_period_end` not expired
+- Check for `customer.subscription.deleted` webhook
+
+---
+
+## 📚 Resources
+
+**Stripe Documentation:**
+- Subscriptions: https://stripe.com/docs/billing/subscriptions/overview
+- Webhooks: https://stripe.com/docs/webhooks
+- Testing: https://stripe.com/docs/testing
+
+**Supabase:**
+- RLS Policies: https://supabase.com/docs/guides/auth/row-level-security
+- Realtime: https://supabase.com/docs/guides/realtime
+
+**Omnia Docs:**
+- Database Schema: `/supabase/database-schema.md`
+- Monetization Plan: `/Documentation/monetizace.txt`
+
+---
+
+## 🎯 Ready to Implement!
+
+**Status:** Waiting for Stripe Test Mode API keys
+
+**Once you send me:**
+1. `STRIPE_SECRET_KEY` (sk_test_...)
+2. `STRIPE_PUBLISHABLE_KEY` (pk_test_...)
+3. Price IDs for monthly and quarterly plans
+
+**I will implement the entire monetization system!** 🚀
+
+---
+
+**Questions? Let me know!**
